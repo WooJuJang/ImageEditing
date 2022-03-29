@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="76" height="56" viewBox="0 0 76 56">
+    <defs>
+        <linearGradient id="prefix__e" x1="43.219%" x2="77.255%" y1="50%" y2="50%">
+            <stop offset="0%" stop-color="#FFF"/>
+            <stop offset="57.477%" stop-color="#E6E6E6"/>
+            <stop offset="100%" stop-color="#EBE6E2"/>
+        </linearGradient>
+        <linearGradient id="prefix__d" x1="50%" x2="50%" y1="0%" y2="100%">
+            <stop offset="0%" stop-color="#FFF"/>
+            <stop offset="100%" stop-color="#979797"/>
+        </linearGradient>
+        <filter id="prefix__a" width="142.1%" height="164.3%" x="-21.1%" y="-30.4%" filterUnits="objectBoundingBox">
+            <feOffset dy="4" in="SourceAlpha" result="shadowOffsetOuter1"/>
+            <feGaussianBlur in="shadowOffsetOuter1" result="shadowBlurOuter1" stdDeviation="2"/>
+            <feColorMatrix in="shadowBlurOuter1" result="shadowMatrixOuter1" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.5 0"/>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <filter id="prefix__b" width="119.4%" height="112.5%" x="-9.7%" y="-4.5%" filterUnits="objectBoundingBox">
+            <feOffset dy="1" in="SourceAlpha" result="shadowOffsetOuter1"/>
+            <feGaussianBlur in="shadowOffsetOuter1" result="shadowBlurOuter1" stdDeviation="1"/>
+            <feComposite in="shadowBlurOuter1" in2="SourceAlpha" operator="out" result="shadowBlurOuter1"/>
+            <feColorMatrix in="shadowBlurOuter1" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.5 0"/>
+        </filter>
+        <path id="prefix__c" d="M20.073 1.717c-.287 8.847.276 17.325 1.69 25.432 1.413 8.108 2.604 14.765 3.572 19.973C28.82 53.04 32.574 56 36.592 56c6.027 0 13.936-2.37 15.706-12.372C53.478 36.96 54.713 22.989 56 1.717 53.057.572 48.07 0 41.043 0H25.335l-5.262 1.717z"/>
+    </defs>
+    <g fill="none" fill-rule="evenodd" filter="url(#prefix__a)">
+        <g transform="matrix(-1 0 0 1 76 0)">
+            <use fill="#000" filter="url(#prefix__b)" xlink:href="#prefix__c"/>
+            <path fill="url(#prefix__e)" stroke="url(#prefix__d)" stroke-linejoin="square" stroke-width="2" d="M25.494 1h15.55c6.337 0 10.979.455 13.912 1.41-1.267 20.791-2.48 34.473-3.642 41.044-.712 4.02-2.47 6.731-4.715 8.5C43.615 54.303 39.812 55 36.592 55c-3.725 0-7.113-2.867-10.307-8.237-.961-5.178-2.14-11.774-3.537-19.786-1.365-7.828-1.93-16.004-1.697-24.528h0L25.494 1z"/>
+        </g>
+        <path d="M0 0H76V56H0z"/>
+    </g>
+</svg>

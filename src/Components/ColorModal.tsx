@@ -14,7 +14,6 @@ interface IColorMap {
   color: RGBColor;
   index: number;
 }
-// const BasicColors: RGBColor = { r: 255, g: 1, b: 12, a: 1 };
 
 const BasicColors: IColor = {
   pink: { r: 255, g: 222, b: 227, a: 1 },
@@ -29,12 +28,7 @@ const BasicColors: IColor = {
 };
 
 const RecentlyColors: RGBColor[] = [];
-// let color: RGBColor = {
-//   r: 241,
-//   g: 112,
-//   b: 19,
-//   a: 1,
-// };
+
 const convertRGBAToString = (rgba: RGBColor): string => {
   return 'rgba(' + String(rgba.r) + ',' + String(rgba.g) + ',' + String(rgba.b) + ',' + String(rgba.a) + ')';
 };
@@ -115,6 +109,7 @@ const ColorModal = ({ colorOpen, setColorOpen, setCurrColor }: IColorModalProp) 
       const temp = RecentlyColors[objIndex];
       RecentlyColors.splice(objIndex, 1);
       RecentlyColors.unshift(temp);
+      localStorage.setItem('recentColor', JSON.stringify(RecentlyColors));
     } else {
       RecentlyColors.unshift(color);
       localStorage.setItem('recentColor', JSON.stringify(RecentlyColors));

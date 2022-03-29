@@ -2,22 +2,19 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Paper, { PointText, Point, Path, Tool, Project, Shape, Group, Curve, Layer } from 'paper';
 import { ICursorList } from '../PaperTypes';
 import Modal from './TextModal';
-import { Rectangle } from 'paper/dist/paper-core';
+
 import ColorModal from './ColorModal';
-import { Color } from 'react-color';
+import { Raster } from 'paper/dist/paper-core';
+
 interface IShapeTools {
   [index: string]: boolean;
 }
-//원하는 결과=> [[path],[path,path,path]]
-type IClearList = paper.PathItem[];
-
-const clearList: IClearList[] = [];
 
 const hitOptions = {
   segments: true,
   stroke: true,
   fill: true,
-  tolerance: 5,
+  tolerance: 20,
 };
 const Tools = {
   penTool: new Paper.Tool(),
@@ -28,6 +25,7 @@ const Tools = {
   rectangleTool: new Paper.Tool(),
   textTool: new Paper.Tool(),
   partClearTool: new Paper.Tool(),
+  toothImageTool: new Paper.Tool(),
 };
 const cursorList: ICursorList = {
   rotate: 'help',
@@ -46,10 +44,15 @@ let origin: paper.Path | paper.Shape | paper.PointText | paper.PathItem;
 let isMove = false;
 let canvas: HTMLCanvasElement;
 let context: CanvasRenderingContext2D | null = null;
-let hideIndex = 0;
-let historyState: string = '';
-let currClearListIndex = 0;
-let layerClone: paper.Layer | undefined;
+
+const toothImageUrls = {
+  ceramic: 'https://cvboard.develop.vsmart00.com/contents/crown-ceramic.svg',
+  gold: 'https://cvboard.develop.vsmart00.com/contents/crown-gold.svg',
+  metal: 'https://cvboard.develop.vsmart00.com/contents/crown-metal.svg',
+  pfm: 'https://cvboard.develop.vsmart00.com/contents/crown-pfm.svg',
+  zirconia: 'https://cvboard.develop.vsmart00.com/contents/crown-zirconia.svg',
+};
+let currToothImageUrl = 'https://cvboard.develop.vsmart00.com/contents/crown-ceramic.svg';
 let shapeTools: IShapeTools = {
   isPen: false,
   isLine: false,
@@ -58,6 +61,7 @@ let shapeTools: IShapeTools = {
   isRectangle: false,
   isText: false,
   isPartClear: false,
+  isToothImage: false,
 };
 
 const findShapeTools = (figure: string) => {
@@ -162,7 +166,9 @@ const Canvas = () => {
   const [cursor, setCursor] = useState('default');
   const [text, setText] = useState('');
   const [currColor, setCurrColor] = useState('rgba(255,255,32,1)');
-
+  const [isSizeDropdown, setIsSizeDropdown] = useState(false);
+  const [isToothImage, setIsToothImage] = useState(false);
+  const [size, setSize] = useState(1);
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
   const canvasRef = useRef(null);
@@ -174,9 +180,7 @@ const Canvas = () => {
       return { canvas, context };
     }
     canvas = canvasRef.current;
-
     context = canvas.getContext('2d');
-
     Paper.setup(canvas);
 
     return { canvas, context };
@@ -184,15 +188,13 @@ const Canvas = () => {
 
   //마우스 이벤트
   Tools.penTool.onMouseDown = (event: paper.ToolEvent) => {
-    historyState = '';
-
     removeForwardHistory();
 
     Paper.settings.handleSize = 0;
     path = new Path({
       segments: [event.point],
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
     });
   };
   Tools.penTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -219,7 +221,7 @@ const Canvas = () => {
     path = new Path({
       segments: [event.point],
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
     });
   };
   Tools.lineTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -245,7 +247,7 @@ const Canvas = () => {
       from: new Point(event.point),
       to: new Point(event.point),
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
     });
   };
   Tools.straightTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -272,7 +274,7 @@ const Canvas = () => {
     shape = new Shape.Ellipse({
       point: [event.point.x, event.point.y],
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
       applyMatrix: false,
       fullySelected: false,
       selected: false,
@@ -338,7 +340,7 @@ const Canvas = () => {
       point: [x, y],
       size: [width, height],
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
       data: { handleSize: 10 },
     });
 
@@ -363,7 +365,7 @@ const Canvas = () => {
       from: new Point(event.point),
       to: new Point(event.point),
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
       data: { type: 'rectangle' },
     });
     // Shape.Rectangle
@@ -453,7 +455,7 @@ const Canvas = () => {
       from: from,
       to: to,
       strokeColor: currColor,
-      strokeWidth: 10,
+      strokeWidth: size,
 
       data: { handleSize: 10, type: 'rectangle' },
     });
@@ -567,44 +569,131 @@ const Canvas = () => {
   };
 
   Tools.moveTool.onMouseMove = (event: paper.ToolEvent) => {
+    Paper.settings.hitTolerance = 10;
     const hitResult = Paper.project.hitTest(event.point, hitOptions);
     Paper.project.activeLayer.selected = false;
 
     if (event.item) {
       event.item.selected = true;
       Paper.settings.handleSize = hitResult.item.data.handleSize;
-
-      if (hitResult.item.data.handleSize === 0) {
-        if (hitResult.item.data.type === 'PointText') {
-          event.item.selected = false;
-          const bottomLeft = hitResult.item.bounds.bottomLeft;
-          const bottomRight = hitResult.item.bounds.bottomRight;
-          const width = hitResult.item.bounds.width / 8;
-          if (
-            (bottomLeft.x < event.point.x && bottomLeft.x + width > event.point.x) ||
-            (bottomRight.x > event.point.x && bottomRight.x - width < event.point.x)
-          ) {
-            setOption('resize');
-          } else if (
-            (bottomLeft.x + width < event.point.x && bottomLeft.x + width * 2 > event.point.x) ||
-            (bottomRight.x - width > event.point.x && bottomRight.x - width * 2 < event.point.x)
-          ) {
-            setOption('rotate');
-          } else if (
-            (bottomLeft.x + width * 2 < event.point.x && bottomLeft.x + width * 3 > event.point.x) ||
-            (bottomRight.x - width * 2 > event.point.x && bottomRight.x - width * 3 < event.point.x)
-          ) {
-            setOption('move');
-          } else if (
-            (bottomLeft.x + width * 3 < event.point.x && bottomLeft.x + width * 4 > event.point.x) ||
-            (bottomRight.x - width * 3 > event.point.x && bottomRight.x - width * 4 < event.point.x)
-          ) {
-            setOption('edit');
-          }
+      if (hitResult.item.data.type === 'PointText') {
+        event.item.selected = false;
+        const bottomLeft = hitResult.item.bounds.bottomLeft;
+        const bottomRight = hitResult.item.bounds.bottomRight;
+        const width = hitResult.item.bounds.width / 8;
+        if (
+          (bottomLeft.x < event.point.x && bottomLeft.x + width > event.point.x) ||
+          (bottomRight.x > event.point.x && bottomRight.x - width < event.point.x)
+        ) {
+          setOption('resize');
+        } else if (
+          (bottomLeft.x + width < event.point.x && bottomLeft.x + width * 2 > event.point.x) ||
+          (bottomRight.x - width > event.point.x && bottomRight.x - width * 2 < event.point.x)
+        ) {
+          setOption('rotate');
+        } else if (
+          (bottomLeft.x + width * 2 < event.point.x && bottomLeft.x + width * 3 > event.point.x) ||
+          (bottomRight.x - width * 2 > event.point.x && bottomRight.x - width * 3 < event.point.x)
+        ) {
+          setOption('move');
+        } else if (
+          (bottomLeft.x + width * 3 < event.point.x && bottomLeft.x + width * 4 > event.point.x) ||
+          (bottomRight.x - width * 3 > event.point.x && bottomRight.x - width * 4 < event.point.x)
+        ) {
+          setOption('edit');
         }
         setMoveCursor(true);
-      } else {
+      } else if (hitResult.item.data.type === 'Raster') {
+        //  event.item.selected = false;
+        //const bounds = [];
+        Paper.settings.handleSize = 10;
+        const topLeft = hitResult.item.bounds.topLeft;
+        const topRight = hitResult.item.bounds.topRight;
+        const bottomLeft = hitResult.item.bounds.bottomLeft;
+        const bottomRight = hitResult.item.bounds.bottomRight;
+        const topCenter = hitResult.item.bounds.topCenter;
+        const bottomCenter = hitResult.item.bounds.bottomCenter;
+        const bounds = hitResult.item.bounds;
+        const width = hitResult.item.bounds.width / 6;
+
+        let divideShape = new Path.Rectangle({
+          from: topLeft,
+          to: bottomRight,
+          strokeColor: currColor,
+          strokeWidth: size,
+
+          selected: true,
+        });
+
+        let dividePath1 = new Path.Line({
+          from: new Point(topLeft.x + width, topLeft.y - 20),
+          to: new Point(bottomLeft.x + width, bottomLeft.y + 20),
+          strokeColor: currColor,
+          strokeWidth: size,
+        });
+
+        let splitPath1 = divideShape.divide(dividePath1, { stroke: true });
+
+        splitPath1.strokeWidth = 10;
+        splitPath1.selected = true;
+        splitPath1.closePath();
+        let group = new Group(splitPath1.children[0]);
+
+        let dividePath2 = new Path.Line({
+          from: new Point(topLeft.x + width * 2, topLeft.y - 20),
+          to: new Point(bottomLeft.x + width * 2, bottomLeft.y + 20),
+          strokeColor: currColor,
+          strokeWidth: size,
+        });
+
+        let splitPath2 = divideShape.divide(dividePath2, { stroke: true });
+
+        splitPath2.strokeWidth = 10;
+        splitPath2.selected = true;
+        splitPath2.closePath();
+
+        group.addChild(splitPath2.children[0]);
+        console.log(group);
+        divideShape.remove();
+
+        // splitPath.translate(new Paper.Point(270, 250));
+        // splitPath.selected = true;
+
+        // let clone = splitPath.clone();
+        // let group = new Paper.Group(clone.children);
+        // clone.remove();
+        // group.strokeWidth = 10;
+        // group.translate(new Point(70, 70));
+
+        // hitResult.item.visible = false;
+
+        // console.log(Paper.project.layers[0]);
+        // const bottomLeft = hitResult.item.bounds.bottomLeft;
+        // const bottomRight = hitResult.item.bounds.bottomRight;
+        // const width = hitResult.item.bounds.width / 6;
+        // if (
+        //   (bottomLeft.x < event.point.x && bottomLeft.x + width > event.point.x) ||
+        //   (bottomRight.x > event.point.x && bottomRight.x - width < event.point.x)
+        // ) {
+        //   setOption('resize');
+        // } else if (
+        //   (bottomLeft.x + width < event.point.x && bottomLeft.x + width * 2 > event.point.x) ||
+        //   (bottomRight.x - width > event.point.x && bottomRight.x - width * 2 < event.point.x)
+        // ) {
+        //   setOption('rotate');
+        // } else if (
+        //   (bottomLeft.x + width * 2 < event.point.x && bottomLeft.x + width * 3 > event.point.x) ||
+        //   (bottomRight.x - width * 2 > event.point.x && bottomRight.x - width * 3 < event.point.x)
+        // ) {
+        //   setOption('move');
+        // }
+        setMoveCursor(true);
+      } else if (hitResult.item.data.handleSize === 0) {
+        setOption('move');
+        setMoveCursor(true);
+      } else if (hitResult.item.data.handleSize === 10) {
         if (hitResult.type === 'stroke') {
+          setOption('move');
           setMoveCursor(true);
         } else if (hitResult.type === 'segment') {
           setMoveCursor(false);
@@ -625,6 +714,8 @@ const Canvas = () => {
         Tools.textTool.activate();
       } else if (shapeTools.isPartClear) {
         Tools.partClearTool.activate();
+      } else if (shapeTools.isToothImage) {
+        Tools.toothImageTool.activate();
       }
       setMoveCursor(false);
     }
@@ -635,33 +726,31 @@ const Canvas = () => {
       return;
     }
 
-    if (path.data.handleSize === 0) {
-      if (path.data.type === 'PointText') {
-        if (option === 'rotate') {
-          // 회전
-          const center = path.bounds.center;
-          const baseVec = center.subtract(event.lastPoint);
-          const nowVec = center.subtract(event.point);
-          const angle = nowVec.angle - baseVec.angle;
-          path.rotate(angle);
-        } else if (option === 'resize') {
-          //크기 조절
-          const bounds = path.data.bounds;
-          const scale = event.point.subtract(bounds.center).length / path.data.scaleBase.length;
-          const tlVec = bounds.topLeft.subtract(bounds.center).multiply(scale);
-          const brVec = bounds.bottomRight.subtract(bounds.center).multiply(scale);
-          const newBounds = new Shape.Rectangle(new Point(tlVec.add(bounds.center)), new Point(brVec.add(bounds.center)));
-          path.bounds = newBounds.bounds;
-        } else if (option === 'move') {
-          //이동
-          path.position.x += event.delta.x;
-          path.position.y += event.delta.y;
-        }
-      } else {
+    if (path.data.type === 'PointText' || path.data.type === 'Raster') {
+      if (option === 'rotate') {
+        // 회전
+        const center = path.bounds.center;
+        const baseVec = center.subtract(event.lastPoint);
+        const nowVec = center.subtract(event.point);
+        const angle = nowVec.angle - baseVec.angle;
+        path.rotate(angle);
+      } else if (option === 'resize') {
+        //크기 조절
+        const bounds = path.data.bounds;
+        const scale = event.point.subtract(bounds.center).length / path.data.scaleBase.length;
+        const tlVec = bounds.topLeft.subtract(bounds.center).multiply(scale);
+        const brVec = bounds.bottomRight.subtract(bounds.center).multiply(scale);
+        const newBounds = new Shape.Rectangle(new Point(tlVec.add(bounds.center)), new Point(brVec.add(bounds.center)));
+        path.bounds = newBounds.bounds;
+      } else if (option === 'move') {
+        //이동
         path.position.x += event.delta.x;
         path.position.y += event.delta.y;
       }
-    } else {
+    } else if (path.data.handleSize === 0) {
+      path.position.x += event.delta.x;
+      path.position.y += event.delta.y;
+    } else if (path.data.handleSize === 10) {
       if (segment) {
         if (path.data.type === 'rectangle') {
           isMove = true;
@@ -716,13 +805,44 @@ const Canvas = () => {
 
     Paper.project.layers[0].children.forEach((item: paper.Item) => {
       if (item.intersects(new Shape.Rectangle(bounds))) {
+        item.selected = false;
         item.visible = false;
       }
     });
 
     Paper.project.layers[0].clone();
   };
+  Tools.toothImageTool.onMouseDown = (event: paper.ToolEvent) => {
+    removeForwardHistory();
 
+    shape = new Shape.Rectangle({
+      from: new Point(event.point),
+      to: new Point(event.point),
+      fillColor: fillColor,
+      strokeColor: currColor,
+    });
+
+    origin = shape.clone();
+  };
+  Tools.toothImageTool.onMouseMove = (event: paper.ToolEvent) => {
+    if (event.item) {
+      Tools.moveTool.activate();
+    }
+  };
+  Tools.toothImageTool.onMouseDrag = (event: paper.ToolEvent) => {
+    resizeCircle(event);
+  };
+  Tools.toothImageTool.onMouseUp = (event: paper.ToolEvent) => {
+    if (shape.bounds.width < 5 && shape.bounds.height < 5) {
+      shape.remove();
+      origin.remove();
+    } else {
+      new Paper.Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: 'Raster' } });
+      shape.remove();
+      origin.remove();
+      makeNewLayer();
+    }
+  };
   useEffect(() => {
     initCanvas();
   }, []);
@@ -735,8 +855,6 @@ const Canvas = () => {
 
           makeNewLayer();
         } else {
-          // const bounds = origin.bounds;
-          // new Path.Rectangle({ bounds: bounds, data: { pointTextId: pointText.id }, fillColor: 'red' });
           shape.remove();
           origin.remove();
           makeNewLayer();
@@ -834,7 +952,124 @@ const Canvas = () => {
           <div>colorIcon</div>
         </div>
 
-        <button>1pt</button>
+        <button onClick={() => setIsSizeDropdown(!isSizeDropdown)}>{size}pt</button>
+        <nav className="size-dropdown" style={{ display: isSizeDropdown ? 'block' : 'none' }}>
+          <ul>
+            <li
+              onClick={() => {
+                setSize(1);
+                setIsSizeDropdown(false);
+              }}
+            >
+              1pt
+            </li>
+            <li
+              onClick={() => {
+                setSize(2);
+                setIsSizeDropdown(false);
+              }}
+            >
+              2pt
+            </li>
+            <li
+              onClick={() => {
+                setSize(4);
+                setIsSizeDropdown(false);
+              }}
+            >
+              4pt
+            </li>
+            <li
+              onClick={() => {
+                setSize(8);
+                setIsSizeDropdown(false);
+              }}
+            >
+              8pt
+            </li>
+            <li
+              onClick={() => {
+                setSize(16);
+                setIsSizeDropdown(false);
+              }}
+            >
+              16pt
+            </li>
+          </ul>
+        </nav>
+      </div>
+      <div>
+        <span>이미지삽입:</span>
+        <button onClick={() => setIsToothImage(!isToothImage)}>치아 이미지</button>
+        <button>임플란트식립</button>
+        <button>길이 측정</button>
+        <div style={{ display: isToothImage ? 'flex' : 'none', width: '180px', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              width: '85px',
+              height: '85px',
+              backgroundImage: 'url("' + toothImageUrls.ceramic + '")',
+              backgroundRepeat: 'no-repeat',
+            }}
+            onClick={() => {
+              currToothImageUrl = toothImageUrls.ceramic;
+              findShapeTools('isToothImage');
+              Tools.toothImageTool.activate();
+            }}
+          />
+          <div
+            style={{
+              width: '85px',
+              height: '85px',
+              backgroundImage: 'url("' + toothImageUrls.gold + '")',
+              backgroundRepeat: 'no-repeat',
+            }}
+            onClick={() => {
+              currToothImageUrl = toothImageUrls.gold;
+              findShapeTools('isToothImage');
+              Tools.toothImageTool.activate();
+            }}
+          />
+          <div
+            style={{
+              width: '85px',
+              height: '85px',
+              backgroundImage: 'url("' + toothImageUrls.metal + '")',
+              backgroundRepeat: 'no-repeat',
+            }}
+            onClick={() => {
+              currToothImageUrl = toothImageUrls.metal;
+              findShapeTools('isToothImage');
+              Tools.toothImageTool.activate();
+            }}
+          />
+          <div
+            style={{
+              width: '85px',
+              height: '85px',
+              backgroundImage: 'url("' + toothImageUrls.pfm + '")',
+              backgroundRepeat: 'no-repeat',
+            }}
+            onClick={() => {
+              currToothImageUrl = toothImageUrls.pfm;
+              findShapeTools('isToothImage');
+              Tools.toothImageTool.activate();
+            }}
+          />{' '}
+          <div
+            style={{
+              width: '85px',
+              height: '85px',
+              backgroundImage: 'url("' + toothImageUrls.zirconia + '")',
+              backgroundRepeat: 'no-repeat',
+            }}
+            onClick={() => {
+              currToothImageUrl = toothImageUrls.zirconia;
+              findShapeTools('isToothImage');
+              Tools.toothImageTool.activate();
+            }}
+          />
+        </div>
       </div>
       <div>
         <span>도형그리기:</span>
