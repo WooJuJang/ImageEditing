@@ -39,7 +39,8 @@ let path: paper.Path;
 let pointText: paper.PointText;
 let segment: paper.Segment;
 let shape: paper.Shape;
-let origin: paper.Path | paper.Shape | paper.PointText | paper.PathItem;
+let origin: paper.Path | paper.Shape | paper.PointText | paper.PathItem | paper.Item;
+let currText: string | null;
 
 let isMove = false;
 let canvas: HTMLCanvasElement;
@@ -157,7 +158,125 @@ const removeForwardHistory = () => {
 const checkPointTextType = (x: any): x is paper.PointText => {
   return x.content;
 };
+interface IEditField {
+  bounds: paper.Rectangle;
+  type: string;
+}
+//텍스트,이미지,임플란트에 대한 편집 필드만들기
+const createEditField = (FigureType: string) => {
+  if (FigureType === 'Raster') {
+    const raster = new Paper.Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: FigureType }, closed: true });
 
+    const topLeft = shape.bounds.topLeft;
+    const bottomLeft = shape.bounds.bottomLeft;
+    const width = shape.bounds.width / 6;
+    raster.data = { RasterId: raster.id };
+    const group = new Paper.Group({ data: { type: FigureType, RasterId: raster.data.RasterId } });
+
+    const pth: paper.Path = new Path.Rectangle({
+      from: topLeft,
+      to: new Point(bottomLeft.x + width, bottomLeft.y),
+      fillColor: 'red',
+
+      data: { option: 'resize' },
+    });
+    const pth2: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width, topLeft.y),
+      to: new Point(bottomLeft.x + width * 2, bottomLeft.y),
+      fillColor: 'blue',
+      data: { option: 'rotate' },
+    });
+    const pth3: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 2, topLeft.y),
+      to: new Point(bottomLeft.x + width * 4, bottomLeft.y),
+      fillColor: 'yellow',
+      data: { option: 'move' },
+    });
+    const pth4: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 4, topLeft.y),
+      to: new Point(bottomLeft.x + width * 5, bottomLeft.y),
+      fillColor: 'blue',
+      data: { option: 'rotate' },
+    });
+    const pth5: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 5, topLeft.y),
+      to: new Point(bottomLeft.x + width * 6, bottomLeft.y),
+      fillColor: 'red',
+
+      data: { option: 'resize' },
+    });
+
+    group.addChild(pth);
+    group.addChild(pth2);
+    group.addChild(pth3);
+    group.addChild(pth4);
+    group.addChild(pth5);
+    group.opacity = 0;
+    group.insertAbove(raster);
+  } else if (FigureType === 'PointText') {
+    const topLeft = shape.bounds.topLeft;
+    const bottomLeft = shape.bounds.bottomLeft;
+    const width = shape.bounds.width / 8;
+
+    const group = new Paper.Group({ data: { type: FigureType, PointTextId: pointText.data.PointTextId } });
+
+    const pth: paper.Path = new Path.Rectangle({
+      from: topLeft,
+      to: new Point(bottomLeft.x + width, bottomLeft.y),
+      fillColor: 'red',
+
+      data: { option: 'resize' },
+    });
+    const pth2: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width, topLeft.y),
+      to: new Point(bottomLeft.x + width * 2, bottomLeft.y),
+      fillColor: 'blue',
+      data: { option: 'rotate' },
+    });
+    const pth3: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 2, topLeft.y),
+      to: new Point(bottomLeft.x + width * 3, bottomLeft.y),
+      fillColor: 'yellow',
+      data: { option: 'move' },
+    });
+    const pth4: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 3, topLeft.y),
+      to: new Point(bottomLeft.x + width * 5, bottomLeft.y),
+      fillColor: 'blue',
+      data: { option: 'edit' },
+    });
+    const pth5: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 5, topLeft.y),
+      to: new Point(bottomLeft.x + width * 6, bottomLeft.y),
+      fillColor: 'red',
+
+      data: { option: 'move' },
+    });
+    const pth6: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 6, topLeft.y),
+      to: new Point(bottomLeft.x + width * 7, bottomLeft.y),
+      fillColor: 'red',
+
+      data: { option: 'rotate' },
+    });
+    const pth7: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 7, topLeft.y),
+      to: new Point(bottomLeft.x + width * 8, bottomLeft.y),
+      fillColor: 'red',
+
+      data: { option: 'resize' },
+    });
+    group.addChild(pth);
+    group.addChild(pth2);
+    group.addChild(pth3);
+    group.addChild(pth4);
+    group.addChild(pth5);
+    group.addChild(pth6);
+    group.addChild(pth7);
+    group.opacity = 0;
+    group.insertAbove(pointText);
+  }
+};
 const Canvas = () => {
   const [open, setOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -546,13 +665,16 @@ const Canvas = () => {
     segment = hitResult.segment;
 
     if (hitResult) {
-      if (option === 'resize') {
-        //텍스트 도형 크기조절
-        path.data.bounds = path.bounds.clone();
-        path.data.scaleBase = event.point.subtract(path.bounds.center);
-      } else if (option === 'edit') {
-        origin = hitResult.item as paper.PointText;
-        pointText = hitResult.item as paper.PointText;
+      if (option === 'edit') {
+        Paper.project.layers[0].children.forEach((child: paper.Item) => {
+          if (hitResult.item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
+            origin = child;
+            pointText = child as paper.PointText;
+            currText = pointText.content;
+            path.parent.data.bounds = path.parent.bounds.clone();
+            path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
+          }
+        });
 
         shape = new Shape.Rectangle({
           from: origin.bounds.topLeft,
@@ -560,10 +682,28 @@ const Canvas = () => {
           strokeColor: currColor,
           fillColor: fillColor,
         });
+
         setX(event.point.x);
         setY(event.point.y);
         setOpen(true);
         setIsEditText(true);
+      }
+      if (hitResult.item.parent.data.type === 'Raster') {
+        Paper.project.layers[0].children.forEach((child: paper.Item) => {
+          if (path.parent.data.RasterId === child.data.RasterId && child.className === 'Raster') {
+            origin = child;
+            path.parent.data.bounds = path.parent.bounds.clone();
+            path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
+          }
+        });
+      } else if (hitResult.item.parent.data.type === 'PointText' && option !== 'edit') {
+        Paper.project.layers[0].children.forEach((child: paper.Item) => {
+          if (path.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
+            origin = child;
+            path.parent.data.bounds = path.parent.bounds.clone();
+            path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
+          }
+        });
       }
     }
   };
@@ -576,117 +716,28 @@ const Canvas = () => {
     if (event.item) {
       event.item.selected = true;
       Paper.settings.handleSize = hitResult.item.data.handleSize;
-      if (hitResult.item.data.type === 'PointText') {
+      if (hitResult.item.parent.data.type === 'PointText') {
         event.item.selected = false;
-        const bottomLeft = hitResult.item.bounds.bottomLeft;
-        const bottomRight = hitResult.item.bounds.bottomRight;
-        const width = hitResult.item.bounds.width / 8;
-        if (
-          (bottomLeft.x < event.point.x && bottomLeft.x + width > event.point.x) ||
-          (bottomRight.x > event.point.x && bottomRight.x - width < event.point.x)
-        ) {
+        if (hitResult.item.data.option === 'resize') {
           setOption('resize');
-        } else if (
-          (bottomLeft.x + width < event.point.x && bottomLeft.x + width * 2 > event.point.x) ||
-          (bottomRight.x - width > event.point.x && bottomRight.x - width * 2 < event.point.x)
-        ) {
+        } else if (hitResult.item.data.option === 'rotate') {
           setOption('rotate');
-        } else if (
-          (bottomLeft.x + width * 2 < event.point.x && bottomLeft.x + width * 3 > event.point.x) ||
-          (bottomRight.x - width * 2 > event.point.x && bottomRight.x - width * 3 < event.point.x)
-        ) {
+        } else if (hitResult.item.data.option === 'move') {
           setOption('move');
-        } else if (
-          (bottomLeft.x + width * 3 < event.point.x && bottomLeft.x + width * 4 > event.point.x) ||
-          (bottomRight.x - width * 3 > event.point.x && bottomRight.x - width * 4 < event.point.x)
-        ) {
+        } else if (hitResult.item.data.option === 'edit') {
           setOption('edit');
         }
         setMoveCursor(true);
-      } else if (hitResult.item.data.type === 'Raster') {
-        //  event.item.selected = false;
-        //const bounds = [];
-        Paper.settings.handleSize = 10;
-        const topLeft = hitResult.item.bounds.topLeft;
-        const topRight = hitResult.item.bounds.topRight;
-        const bottomLeft = hitResult.item.bounds.bottomLeft;
-        const bottomRight = hitResult.item.bounds.bottomRight;
-        const topCenter = hitResult.item.bounds.topCenter;
-        const bottomCenter = hitResult.item.bounds.bottomCenter;
-        const bounds = hitResult.item.bounds;
-        const width = hitResult.item.bounds.width / 6;
+      } else if (hitResult.item.parent.data.type === 'Raster') {
+        event.item.selected = false;
+        if (hitResult.item.data.option === 'resize') {
+          setOption('resize');
+        } else if (hitResult.item.data.option === 'rotate') {
+          setOption('rotate');
+        } else if (hitResult.item.data.option === 'move') {
+          setOption('move');
+        }
 
-        let divideShape = new Path.Rectangle({
-          from: topLeft,
-          to: bottomRight,
-          strokeColor: currColor,
-          strokeWidth: size,
-
-          selected: true,
-        });
-
-        let dividePath1 = new Path.Line({
-          from: new Point(topLeft.x + width, topLeft.y - 20),
-          to: new Point(bottomLeft.x + width, bottomLeft.y + 20),
-          strokeColor: currColor,
-          strokeWidth: size,
-        });
-
-        let splitPath1 = divideShape.divide(dividePath1, { stroke: true });
-
-        splitPath1.strokeWidth = 10;
-        splitPath1.selected = true;
-        splitPath1.closePath();
-        let group = new Group(splitPath1.children[0]);
-
-        let dividePath2 = new Path.Line({
-          from: new Point(topLeft.x + width * 2, topLeft.y - 20),
-          to: new Point(bottomLeft.x + width * 2, bottomLeft.y + 20),
-          strokeColor: currColor,
-          strokeWidth: size,
-        });
-
-        let splitPath2 = divideShape.divide(dividePath2, { stroke: true });
-
-        splitPath2.strokeWidth = 10;
-        splitPath2.selected = true;
-        splitPath2.closePath();
-
-        group.addChild(splitPath2.children[0]);
-        console.log(group);
-        divideShape.remove();
-
-        // splitPath.translate(new Paper.Point(270, 250));
-        // splitPath.selected = true;
-
-        // let clone = splitPath.clone();
-        // let group = new Paper.Group(clone.children);
-        // clone.remove();
-        // group.strokeWidth = 10;
-        // group.translate(new Point(70, 70));
-
-        // hitResult.item.visible = false;
-
-        // console.log(Paper.project.layers[0]);
-        // const bottomLeft = hitResult.item.bounds.bottomLeft;
-        // const bottomRight = hitResult.item.bounds.bottomRight;
-        // const width = hitResult.item.bounds.width / 6;
-        // if (
-        //   (bottomLeft.x < event.point.x && bottomLeft.x + width > event.point.x) ||
-        //   (bottomRight.x > event.point.x && bottomRight.x - width < event.point.x)
-        // ) {
-        //   setOption('resize');
-        // } else if (
-        //   (bottomLeft.x + width < event.point.x && bottomLeft.x + width * 2 > event.point.x) ||
-        //   (bottomRight.x - width > event.point.x && bottomRight.x - width * 2 < event.point.x)
-        // ) {
-        //   setOption('rotate');
-        // } else if (
-        //   (bottomLeft.x + width * 2 < event.point.x && bottomLeft.x + width * 3 > event.point.x) ||
-        //   (bottomRight.x - width * 2 > event.point.x && bottomRight.x - width * 3 < event.point.x)
-        // ) {
-        //   setOption('move');
-        // }
         setMoveCursor(true);
       } else if (hitResult.item.data.handleSize === 0) {
         setOption('move');
@@ -726,26 +777,38 @@ const Canvas = () => {
       return;
     }
 
-    if (path.data.type === 'PointText' || path.data.type === 'Raster') {
+    if (path.parent.data.type === 'PointText' || path.parent.data.type === 'Raster') {
       if (option === 'rotate') {
         // 회전
-        const center = path.bounds.center;
+        const center = path.parent.bounds.center;
         const baseVec = center.subtract(event.lastPoint);
         const nowVec = center.subtract(event.point);
         const angle = nowVec.angle - baseVec.angle;
-        path.rotate(angle);
+        origin.rotate(angle);
+        path.parent.rotate(angle);
       } else if (option === 'resize') {
         //크기 조절
-        const bounds = path.data.bounds;
-        const scale = event.point.subtract(bounds.center).length / path.data.scaleBase.length;
+
+        const bounds = path.parent.data.bounds;
+        //const bounds = path.parent.bounds;
+        const scale = event.point.subtract(bounds.center).length / path.parent.data.scaleBase.length;
         const tlVec = bounds.topLeft.subtract(bounds.center).multiply(scale);
         const brVec = bounds.bottomRight.subtract(bounds.center).multiply(scale);
         const newBounds = new Shape.Rectangle(new Point(tlVec.add(bounds.center)), new Point(brVec.add(bounds.center)));
-        path.bounds = newBounds.bounds;
+        // path.bounds = newBounds.bounds;
+
+        origin.bounds = newBounds.bounds;
+        path.parent.bounds = newBounds.bounds;
       } else if (option === 'move') {
         //이동
-        path.position.x += event.delta.x;
-        path.position.y += event.delta.y;
+        // path.position.x += event.delta.x;
+        // path.position.y += event.delta.y;
+
+        path.parent.position.x += event.delta.x;
+        path.parent.position.y += event.delta.y;
+
+        origin.position.x += event.delta.x;
+        origin.position.y += event.delta.y;
       }
     } else if (path.data.handleSize === 0) {
       path.position.x += event.delta.x;
@@ -767,9 +830,7 @@ const Canvas = () => {
     }
   };
   Tools.moveTool.onMouseUp = (event: paper.ToolEvent) => {
-    if (path.data.type !== 'PointText') {
-      makeNewLayer();
-    } else if (path.data.type === 'PointText' && option !== 'edit') {
+    if (option !== 'edit') {
       makeNewLayer();
     }
 
@@ -784,8 +845,6 @@ const Canvas = () => {
       from: new Point(event.point),
       to: new Point(event.point),
       strokeColor: currColor,
-
-      name: 'rectangle',
     });
 
     origin = shape.clone();
@@ -832,16 +891,19 @@ const Canvas = () => {
   Tools.toothImageTool.onMouseDrag = (event: paper.ToolEvent) => {
     resizeCircle(event);
   };
+
   Tools.toothImageTool.onMouseUp = (event: paper.ToolEvent) => {
     if (shape.bounds.width < 5 && shape.bounds.height < 5) {
       shape.remove();
       origin.remove();
     } else {
-      new Paper.Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: 'Raster' } });
+      createEditField('Raster');
       shape.remove();
       origin.remove();
+
       makeNewLayer();
     }
+    Tools.moveTool.activate();
   };
   useEffect(() => {
     initCanvas();
@@ -851,19 +913,29 @@ const Canvas = () => {
     if (!open) {
       if (pointText) {
         if (isEditText) {
-          shape.remove();
-
-          makeNewLayer();
+          if (text !== currText) {
+            createEditField('PointText');
+            shape.remove();
+            Paper.project.layers[1].remove();
+            makeNewLayer();
+          } else {
+            shape.remove();
+            Paper.project.layers[1].remove();
+          }
         } else {
+          createEditField('PointText');
           shape.remove();
           origin.remove();
           makeNewLayer();
         }
+      } else {
+        if (shape) {
+          shape.remove();
+          origin.remove();
+        }
       }
 
       Tools.moveTool.activate();
-    } else {
-      if (checkPointTextType(origin)) setText(origin.content);
     }
   }, [open]);
 
@@ -885,13 +957,12 @@ const Canvas = () => {
 
         pointText = new PointText({
           content: text,
-
           fillColor: currColor,
           strokeScaling: true,
           bounds: shape.bounds,
           data: { handleSize: 0, type: 'PointText' },
         });
-
+        pointText.data = { PointTextId: pointText.id };
         pointText.insertAbove(shape);
       }
     }
