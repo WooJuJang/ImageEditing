@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Paper, { Raster, PointText, Group, Point, Tool, Size } from 'paper';
+import Paper, { Raster, PointText, Group, Point, Tool, Size, Rectangle } from 'paper';
 
 interface IInsertImplantsModalProp {
   implantOpen: boolean;
@@ -20,9 +20,9 @@ let implantContext: CanvasRenderingContext2D | null = null;
 let implantPaper: paper.PaperScope = new Paper.PaperScope();
 
 let implantGroup: paper.Group;
-let implantImage: paper.Raster;
+let implantImage: paper.Group;
 let implantInfo: paper.PointText;
-let crown: paper.Raster;
+let crown: paper.Group;
 
 const ImplantInfo: IImplantInfo[] = [
   { Diameter: 2.0, Length: 8.5, image: 'implants/implant-20-x-85.svg' },
@@ -45,7 +45,6 @@ const crownInfo: ICrownInfo[] = [
 ];
 const drawImplant = () => {
   implantGroup = new Group({ data: { type: 'implant' } });
-
   implantGroup.addChild(implantImage);
   implantGroup.addChild(implantInfo);
   implantGroup.addChild(crown);
@@ -107,24 +106,25 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInser
     implantPaper.project.activeLayer.removeChildren();
     crownInfo.forEach((data: ICrownInfo) => {
       if (crownType === data.crownType) {
-        crown = new Raster({
-          source: data.image,
-          position: new Point(implantPaper.view.center.x, implantPaper.view.center.y - 85),
-          data: { type: 'crown' },
+        crown = new Group();
+        crown.importSVG(data.image, (item: any) => {
+          item.position = new Point(implantPaper.view.center.x, implantPaper.view.center.y - 85);
+          // item.data = { type: 'crown' };
+          drawImplant();
         });
       }
     });
-    drawImplant();
   };
   const drawImplants = (data: IImplantInfo) => {
     implantPaper.activate();
     implantPaper.project.activeLayer.removeChildren();
-    implantImage = new Raster({
-      source: data.image,
-      position: implantPaper.view.center,
+
+    implantImage = new Group({
       data: { type: 'implantImage', diameter: data.Diameter, length: data.Length },
     });
-
+    implantImage.importSVG(data.image, (item: any) => {
+      implantImage.position = implantPaper.view.center;
+    });
     implantInfo = new PointText({
       content: String(data.Diameter) + 'x' + String(data.Length),
       fillColor: 'yellow',

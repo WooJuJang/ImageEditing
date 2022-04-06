@@ -1,11 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import Paper, { PointText, Point, Path, Tool, Project, Shape, Group, Curve, Layer } from 'paper';
+import Paper, { PointText, Point, Path, Tool, Project, Shape, Group, Raster } from 'paper';
 import { ICursorList } from '../PaperTypes';
 import Modal from './TextModal';
 
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
-import { Rectangle, Size } from 'paper/dist/paper-core';
+import { HitResult, Rectangle, Size } from 'paper/dist/paper-core';
 
 interface IShapeTools {
   [index: string]: boolean;
@@ -695,7 +695,6 @@ const Canvas = () => {
       }
       if (hitResult.item.parent.data.type === 'Raster') {
         defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
-          console.log(child);
           if (path.parent.data.RasterId === child.data.RasterId && child.className === 'Raster') {
             origin = child;
             path.parent.data.bounds = path.parent.bounds.clone();
@@ -710,7 +709,7 @@ const Canvas = () => {
             path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
           }
         });
-      } else if (hitResult.item.parent.data.type === 'implantFiled') {
+      } else if (hitResult.item.parent.data.type === 'implant') {
         defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
           if (path.parent.data.ImplantFiledId === child.data.ImplantFiledId && child.data.type === 'implant') {
             origin = child;
@@ -720,6 +719,8 @@ const Canvas = () => {
           }
         });
       }
+      defaultPaper.settings.handleSize = 10;
+      console.log(hitResult.item);
     }
   };
 
@@ -731,6 +732,7 @@ const Canvas = () => {
     if (event.item) {
       event.item.selected = true;
       defaultPaper.settings.handleSize = hitResult.item.data.handleSize;
+
       if (hitResult.item.parent.data.type === 'PointText') {
         event.item.selected = false;
         if (hitResult.item.data.option === 'resize') {
@@ -754,6 +756,8 @@ const Canvas = () => {
         }
 
         setMoveCursor(true);
+      } else if (hitResult.item.parent.data.type === 'implant') {
+        console.group(event.item);
       } else if (hitResult.item.data.handleSize === 0) {
         setOption('move');
         setMoveCursor(true);
@@ -827,7 +831,8 @@ const Canvas = () => {
         origin.position.y += event.delta.y;
       }
     } else if (path.parent.data.type === 'implantFiled') {
-      if (path.data.type === 'crown') {
+      console.log(path.parent);
+      if (path.data.type === 'crownType') {
         const center = path.parent.bounds.center;
         const baseVec = center.subtract(event.lastPoint);
         const nowVec = center.subtract(event.point);
@@ -1022,33 +1027,48 @@ const Canvas = () => {
     setCursor(cursorList[option]);
   }, [option]);
   const [implantInput, setImplantInput] = useState<paper.Group | null>(null);
+
   useEffect(() => {
     if (implantInput) {
       defaultPaper.activate();
       defaultPaper.settings.insertItems = true;
       implantInput.position = defaultPaper.view.center;
       implantInput.data = { type: 'implant', ImplantFiledId: implantInput.id };
-
       defaultPaper.project.activeLayer.addChild(implantInput);
-      const group = new Group({ data: { type: 'implantFiled', ImplantFiledId: implantInput.id } });
-      const crownArea = new Shape.Rectangle({
-        position: new Point(implantInput.children[2].bounds.center.x, implantInput.children[2].bounds.topCenter.y + 26),
-        fillColor: 'blue',
-        data: { type: 'crownType' },
-      });
-      crownArea.size = new Size(40, 55);
-      group.addChild(crownArea);
-      const implantArea = new Shape.Rectangle({
-        position: new Point(
-          implantInput.children[0].bounds.center.x,
-          implantInput.children[0].bounds.topCenter.y + implantInput.children[0].data.length * 4.6
-        ),
 
-        fillColor: 'red',
-      });
-      implantArea.size = new Size(implantInput.children[0].data.diameter * 10, implantInput.children[0].data.length * 9.5);
-      group.addChild(implantArea);
-      defaultPaper.project.activeLayer.addChild(group);
+      const crown: paper.HitResult = defaultPaper.project.hitTest(new Point(implantInput.children[2].bounds.center));
+      crown.item.data = { type: 'crown' };
+      const upImplant: paper.HitResult = defaultPaper.project.hitTest(new Point(implantInput.children[0].bounds.topCenter));
+      upImplant.item.data = { type: 'upImplant' };
+      const downImplant: paper.HitResult = defaultPaper.project.hitTest(new Point(implantInput.children[0].bounds.center));
+      downImplant.item.data = { type: 'downImplant' };
+      // const cw = crown.item.bounds.width;
+      // const ch = crown.item.bounds.height;
+      // const iw = implant.item.bounds.width;
+      // const ih = implant.item.bounds.height;
+      // console.log(implant, iw, ih);
+      // testGroup.fitBounds(new Rectangle({ point: new Point(50, 50), size: new Size(30, 60) }));
+      // const group = new Group({
+      //   data: { type: 'implantFiled', ImplantFiledId: implantInput.id },
+      // });
+      // const crownArea = new Shape.Rectangle({
+      //   position: new Point(implantInput.children[2].bounds.center.x, implantInput.children[2].bounds.topCenter.y + 26),
+      //   fillColor: 'blue',
+      //   data: { type: 'crownType' },
+      // });
+      // crownArea.size = new Size(40, 55);
+      // group.addChild(crownArea);
+      // const implantArea = new Shape.Rectangle({
+      //   position: new Point(
+      //     implantInput.children[0].bounds.center.x,
+      //     implantInput.children[0].bounds.topCenter.y + implantInput.children[0].data.length * 8.5
+      //   ),
+
+      //   fillColor: 'red',
+      // });
+      // implantArea.size = new Size(implantInput.children[0].data.diameter * 10, implantInput.children[0].data.length * 17.5);
+      // group.addChild(implantArea);
+      // defaultPaper.project.activeLayer.addChild(group);
 
       makeNewLayer();
 
