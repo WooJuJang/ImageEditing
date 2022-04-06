@@ -4,12 +4,13 @@ import { ICursorList } from '../PaperTypes';
 import Modal from './TextModal';
 
 import ColorModal from './ColorModal';
-import { Raster } from 'paper/dist/paper-core';
+import InsertImplants from './InsertImplants';
+import { Rectangle, Size } from 'paper/dist/paper-core';
 
 interface IShapeTools {
   [index: string]: boolean;
 }
-
+let defaultPaper: paper.PaperScope = new Paper.PaperScope();
 const hitOptions = {
   segments: true,
   stroke: true,
@@ -17,15 +18,15 @@ const hitOptions = {
   tolerance: 20,
 };
 const Tools = {
-  penTool: new Paper.Tool(),
-  lineTool: new Paper.Tool(),
-  moveTool: new Paper.Tool(),
-  straightTool: new Paper.Tool(),
-  circleTool: new Paper.Tool(),
-  rectangleTool: new Paper.Tool(),
-  textTool: new Paper.Tool(),
-  partClearTool: new Paper.Tool(),
-  toothImageTool: new Paper.Tool(),
+  penTool: new defaultPaper.Tool(),
+  lineTool: new defaultPaper.Tool(),
+  moveTool: new defaultPaper.Tool(),
+  straightTool: new defaultPaper.Tool(),
+  circleTool: new defaultPaper.Tool(),
+  rectangleTool: new defaultPaper.Tool(),
+  textTool: new defaultPaper.Tool(),
+  partClearTool: new defaultPaper.Tool(),
+  toothImageTool: new defaultPaper.Tool(),
 };
 const cursorList: ICursorList = {
   rotate: 'help',
@@ -110,19 +111,19 @@ const deleteNoDragShape = () => {
 };
 
 const backLayer = () => {
-  for (let index in Paper.project.layers) {
+  for (let index in defaultPaper.project.layers) {
     if (parseInt(index) === currLayerIndex) {
-      Paper.project.layers[index].visible = true;
+      defaultPaper.project.layers[index].visible = true;
     } else {
-      Paper.project.layers[index].visible = false;
+      defaultPaper.project.layers[index].visible = false;
     }
   }
 };
 
 const makeNewLayer = () => {
-  Paper.project.layers[0].clone();
-  if (Paper.project.layers[1]) {
-    Paper.project.layers[1].visible = false;
+  defaultPaper.project.layers[0].clone();
+  if (defaultPaper.project.layers[1]) {
+    defaultPaper.project.layers[1].visible = false;
   }
 };
 
@@ -137,47 +138,46 @@ const removeForwardHistory = () => {
 
   if (currLayerIndex >= 1) {
     for (let i = 1; i < currLayerIndex; i++) {
-      Paper.project.layers[1].remove();
+      defaultPaper.project.layers[1].remove();
     }
 
-    if (Paper.project.layers[1]) {
-      Paper.project.activeLayer.removeChildren();
-      Paper.project.activeLayer.addChildren(Paper.project.layers[1].children);
-      Paper.project.activeLayer.clone();
-      Paper.project.layers[2].remove();
-      Paper.project.activeLayer.visible = true;
-      Paper.project.layers[1].visible = false;
+    if (defaultPaper.project.layers[1]) {
+      defaultPaper.project.activeLayer.removeChildren();
+      defaultPaper.project.activeLayer.addChildren(defaultPaper.project.layers[1].children);
+      defaultPaper.project.activeLayer.clone();
+      defaultPaper.project.layers[2].remove();
+      defaultPaper.project.activeLayer.visible = true;
+      defaultPaper.project.layers[1].visible = false;
     } else {
-      Paper.project.activeLayer.removeChildren();
-      Paper.project.activeLayer.visible = true;
+      defaultPaper.project.activeLayer.removeChildren();
+      defaultPaper.project.activeLayer.visible = true;
     }
 
     currLayerIndex = 1;
   }
 };
-const checkPointTextType = (x: any): x is paper.PointText => {
-  return x.content;
-};
-interface IEditField {
-  bounds: paper.Rectangle;
-  type: string;
-}
+// const checkPointTextType = (x: any): x is paper.PointText => {
+//   return x.content;
+// };
+// interface IEditField {
+//   bounds: paper.Rectangle;
+//   type: string;
+// }
 //텍스트,이미지,임플란트에 대한 편집 필드만들기
 const createEditField = (FigureType: string) => {
   if (FigureType === 'Raster') {
-    const raster = new Paper.Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: FigureType }, closed: true });
+    const raster = new defaultPaper.Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: FigureType }, closed: true });
 
     const topLeft = shape.bounds.topLeft;
     const bottomLeft = shape.bounds.bottomLeft;
     const width = shape.bounds.width / 6;
     raster.data = { RasterId: raster.id };
-    const group = new Paper.Group({ data: { type: FigureType, RasterId: raster.data.RasterId } });
+    const group = new Group({ data: { type: FigureType, RasterId: raster.data.RasterId } });
 
     const pth: paper.Path = new Path.Rectangle({
       from: topLeft,
       to: new Point(bottomLeft.x + width, bottomLeft.y),
       fillColor: 'red',
-
       data: { option: 'resize' },
     });
     const pth2: paper.Path = new Path.Rectangle({
@@ -202,7 +202,6 @@ const createEditField = (FigureType: string) => {
       from: new Point(topLeft.x + width * 5, topLeft.y),
       to: new Point(bottomLeft.x + width * 6, bottomLeft.y),
       fillColor: 'red',
-
       data: { option: 'resize' },
     });
 
@@ -218,7 +217,7 @@ const createEditField = (FigureType: string) => {
     const bottomLeft = shape.bounds.bottomLeft;
     const width = shape.bounds.width / 8;
 
-    const group = new Paper.Group({ data: { type: FigureType, PointTextId: pointText.data.PointTextId } });
+    const group = new defaultPaper.Group({ data: { type: FigureType, PointTextId: pointText.data.PointTextId } });
 
     const pth: paper.Path = new Path.Rectangle({
       from: topLeft,
@@ -277,9 +276,11 @@ const createEditField = (FigureType: string) => {
     group.insertAbove(pointText);
   }
 };
+
 const Canvas = () => {
   const [open, setOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
+  const [implantOpen, setImplantOpen] = useState<boolean>(false);
   const [option, setOption] = useState('');
   const [isEditText, setIsEditText] = useState(false);
   const [cursor, setCursor] = useState('default');
@@ -290,7 +291,7 @@ const Canvas = () => {
   const [size, setSize] = useState(1);
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
-  const canvasRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [moveCursor, setMoveCursor] = useState(false);
   const fillColor = currColor.split(',')[0] + ',' + currColor.split(',')[1] + ',' + currColor.split(',')[2] + ',' + '0.1)';
@@ -300,7 +301,10 @@ const Canvas = () => {
     }
     canvas = canvasRef.current;
     context = canvas.getContext('2d');
-    Paper.setup(canvas);
+    //defaultPaper = new Paper.PaperScope();
+    // Paper.setup(canvas);
+    defaultPaper.setup(canvas);
+    defaultPaper.activate();
 
     return { canvas, context };
   };
@@ -309,7 +313,7 @@ const Canvas = () => {
   Tools.penTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
 
-    Paper.settings.handleSize = 0;
+    defaultPaper.settings.handleSize = 0;
     path = new Path({
       segments: [event.point],
       strokeColor: currColor,
@@ -336,7 +340,7 @@ const Canvas = () => {
 
   Tools.lineTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
-    Paper.settings.handleSize = 10;
+    defaultPaper.settings.handleSize = 10;
     path = new Path({
       segments: [event.point],
       strokeColor: currColor,
@@ -361,10 +365,10 @@ const Canvas = () => {
   };
   Tools.straightTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
-    Paper.settings.handleSize = 10;
+    defaultPaper.settings.handleSize = 10;
     path = new Path.Line({
-      from: new Point(event.point),
-      to: new Point(event.point),
+      from: new defaultPaper.Point(event.point),
+      to: new defaultPaper.Point(event.point),
       strokeColor: currColor,
       strokeWidth: size,
     });
@@ -380,16 +384,17 @@ const Canvas = () => {
   Tools.straightTool.onMouseUp = (event: paper.ToolEvent) => {
     path.data.handleSize = 10;
 
-    path.selected = true;
+    path.selected = false;
     if (path.length < 5) {
       path.remove();
     }
     makeNewLayer();
+
     Tools.moveTool.activate();
   };
   Tools.circleTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
-    Paper.settings.handleSize = 10;
+    defaultPaper.settings.handleSize = 10;
     shape = new Shape.Ellipse({
       point: [event.point.x, event.point.y],
       strokeColor: currColor,
@@ -453,8 +458,8 @@ const Canvas = () => {
     let height = shape.size.height;
 
     shape.remove();
-    Paper.project.activeLayer.children.at(-1)?.remove();
-    Paper.settings.handleSize = 10;
+    defaultPaper.project.activeLayer.children.at(-1)?.remove();
+    defaultPaper.settings.handleSize = 10;
     path = new Path.Ellipse({
       point: [x, y],
       size: [width, height],
@@ -474,7 +479,7 @@ const Canvas = () => {
 
   Tools.rectangleTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
-    Paper.settings.handleSize = 0;
+    defaultPaper.settings.handleSize = 0;
 
     // Path.Rectangle
     // let rectangle = new Rectangle(new Point(event.point), new Point(event.point));
@@ -568,8 +573,8 @@ const Canvas = () => {
     const to = path.segments[3].point;
 
     path.remove();
-    Paper.project.activeLayer.children.at(-1)?.remove();
-    Paper.settings.handleSize = 10;
+    defaultPaper.project.activeLayer.children.at(-1)?.remove();
+    defaultPaper.settings.handleSize = 10;
     path = new Path.Rectangle({
       from: from,
       to: to,
@@ -638,25 +643,25 @@ const Canvas = () => {
   };
 
   Tools.moveTool.onMouseDown = (event: paper.ToolEvent) => {
-    const hitResult = Paper.project.hitTest(event.point, hitOptions);
+    const hitResult = defaultPaper.project.hitTest(event.point, hitOptions);
     if (!hitResult) {
       return;
     }
 
     //실행취소한 히스토리 제거
 
-    if (Paper.project.layers[1]) {
+    if (defaultPaper.project.layers[1]) {
       for (let i = 1; i < currLayerIndex; i++) {
-        Paper.project.layers[1].remove();
+        defaultPaper.project.layers[1].remove();
       }
 
       if (currLayerIndex > 1) {
-        Paper.project.activeLayer.removeChildren();
-        Paper.project.activeLayer.addChildren(Paper.project.layers[1].children);
-        Paper.project.activeLayer.clone();
-        Paper.project.layers[2].remove();
-        Paper.project.activeLayer.visible = true;
-        Paper.project.layers[1].visible = false;
+        defaultPaper.project.activeLayer.removeChildren();
+        defaultPaper.project.activeLayer.addChildren(defaultPaper.project.layers[1].children);
+        defaultPaper.project.activeLayer.clone();
+        defaultPaper.project.layers[2].remove();
+        defaultPaper.project.activeLayer.visible = true;
+        defaultPaper.project.layers[1].visible = false;
         currLayerIndex = 1;
       }
     }
@@ -666,7 +671,7 @@ const Canvas = () => {
 
     if (hitResult) {
       if (option === 'edit') {
-        Paper.project.layers[0].children.forEach((child: paper.Item) => {
+        defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
           if (hitResult.item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
             origin = child;
             pointText = child as paper.PointText;
@@ -689,7 +694,8 @@ const Canvas = () => {
         setIsEditText(true);
       }
       if (hitResult.item.parent.data.type === 'Raster') {
-        Paper.project.layers[0].children.forEach((child: paper.Item) => {
+        defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
+          console.log(child);
           if (path.parent.data.RasterId === child.data.RasterId && child.className === 'Raster') {
             origin = child;
             path.parent.data.bounds = path.parent.bounds.clone();
@@ -697,9 +703,18 @@ const Canvas = () => {
           }
         });
       } else if (hitResult.item.parent.data.type === 'PointText' && option !== 'edit') {
-        Paper.project.layers[0].children.forEach((child: paper.Item) => {
+        defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
           if (path.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
             origin = child;
+            path.parent.data.bounds = path.parent.bounds.clone();
+            path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
+          }
+        });
+      } else if (hitResult.item.parent.data.type === 'implantFiled') {
+        defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
+          if (path.parent.data.ImplantFiledId === child.data.ImplantFiledId && child.data.type === 'implant') {
+            origin = child;
+
             path.parent.data.bounds = path.parent.bounds.clone();
             path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
           }
@@ -709,13 +724,13 @@ const Canvas = () => {
   };
 
   Tools.moveTool.onMouseMove = (event: paper.ToolEvent) => {
-    Paper.settings.hitTolerance = 10;
-    const hitResult = Paper.project.hitTest(event.point, hitOptions);
-    Paper.project.activeLayer.selected = false;
+    defaultPaper.settings.hitTolerance = 10;
+    const hitResult = defaultPaper.project.hitTest(event.point, hitOptions);
+    defaultPaper.project.activeLayer.selected = false;
 
     if (event.item) {
       event.item.selected = true;
-      Paper.settings.handleSize = hitResult.item.data.handleSize;
+      defaultPaper.settings.handleSize = hitResult.item.data.handleSize;
       if (hitResult.item.parent.data.type === 'PointText') {
         event.item.selected = false;
         if (hitResult.item.data.option === 'resize') {
@@ -784,6 +799,7 @@ const Canvas = () => {
         const baseVec = center.subtract(event.lastPoint);
         const nowVec = center.subtract(event.point);
         const angle = nowVec.angle - baseVec.angle;
+
         origin.rotate(angle);
         path.parent.rotate(angle);
       } else if (option === 'resize') {
@@ -809,6 +825,15 @@ const Canvas = () => {
 
         origin.position.x += event.delta.x;
         origin.position.y += event.delta.y;
+      }
+    } else if (path.parent.data.type === 'implantFiled') {
+      if (path.data.type === 'crown') {
+        const center = path.parent.bounds.center;
+        const baseVec = center.subtract(event.lastPoint);
+        const nowVec = center.subtract(event.point);
+        const angle = nowVec.angle - baseVec.angle;
+        origin.rotate(angle);
+        path.parent.rotate(angle);
       }
     } else if (path.data.handleSize === 0) {
       path.position.x += event.delta.x;
@@ -839,7 +864,7 @@ const Canvas = () => {
 
   Tools.partClearTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
-    Paper.settings.handleSize = 0;
+    defaultPaper.settings.handleSize = 0;
 
     shape = new Shape.Rectangle({
       from: new Point(event.point),
@@ -862,14 +887,14 @@ const Canvas = () => {
     shape.remove();
     origin.remove();
 
-    Paper.project.layers[0].children.forEach((item: paper.Item) => {
+    defaultPaper.project.layers[0].children.forEach((item: paper.Item) => {
       if (item.intersects(new Shape.Rectangle(bounds))) {
         item.selected = false;
         item.visible = false;
       }
     });
 
-    Paper.project.layers[0].clone();
+    defaultPaper.project.layers[0].clone();
   };
   Tools.toothImageTool.onMouseDown = (event: paper.ToolEvent) => {
     removeForwardHistory();
@@ -916,11 +941,11 @@ const Canvas = () => {
           if (text !== currText) {
             createEditField('PointText');
             shape.remove();
-            Paper.project.layers[1].remove();
+            defaultPaper.project.layers[1].remove();
             makeNewLayer();
           } else {
             shape.remove();
-            Paper.project.layers[1].remove();
+            defaultPaper.project.layers[1].remove();
           }
         } else {
           createEditField('PointText');
@@ -953,7 +978,7 @@ const Canvas = () => {
         pointText.insertAbove(shape);
       } else if (!isEditText) {
         //기존 textItem삭제
-        Paper.project.layers[0].lastChild.remove();
+        defaultPaper.project.layers[0].lastChild.remove();
 
         pointText = new PointText({
           content: text,
@@ -969,7 +994,7 @@ const Canvas = () => {
   }, [text, isEditText]);
 
   const backFigureHistory = () => {
-    if (currLayerIndex < Paper.project.layers.length) {
+    if (currLayerIndex < defaultPaper.project.layers.length) {
       currLayerIndex += 1;
 
       backLayer();
@@ -983,12 +1008,12 @@ const Canvas = () => {
   };
 
   const clearFigureHistory = () => {
-    Paper.project.layers[currLayerIndex].visible = false;
-    Paper.project.layers[0].removeChildren();
-    Paper.project.layers[0].clone();
-    Paper.project.layers.splice(currLayerIndex + 1, 0, Paper.project.layers[1]);
-    Paper.project.layers[1].remove();
-    Paper.project.layers[0].visible = true;
+    defaultPaper.project.layers[currLayerIndex].visible = false;
+    defaultPaper.project.layers[0].removeChildren();
+    defaultPaper.project.layers[0].clone();
+    defaultPaper.project.layers.splice(currLayerIndex + 1, 0, defaultPaper.project.layers[1]);
+    defaultPaper.project.layers[1].remove();
+    defaultPaper.project.layers[0].visible = true;
   };
 
   useEffect(() => {
@@ -996,12 +1021,47 @@ const Canvas = () => {
 
     setCursor(cursorList[option]);
   }, [option]);
+  const [implantInput, setImplantInput] = useState<paper.Group | null>(null);
+  useEffect(() => {
+    if (implantInput) {
+      defaultPaper.activate();
+      defaultPaper.settings.insertItems = true;
+      implantInput.position = defaultPaper.view.center;
+      implantInput.data = { type: 'implant', ImplantFiledId: implantInput.id };
+
+      defaultPaper.project.activeLayer.addChild(implantInput);
+      const group = new Group({ data: { type: 'implantFiled', ImplantFiledId: implantInput.id } });
+      const crownArea = new Shape.Rectangle({
+        position: new Point(implantInput.children[2].bounds.center.x, implantInput.children[2].bounds.topCenter.y + 26),
+        fillColor: 'blue',
+        data: { type: 'crownType' },
+      });
+      crownArea.size = new Size(40, 55);
+      group.addChild(crownArea);
+      const implantArea = new Shape.Rectangle({
+        position: new Point(
+          implantInput.children[0].bounds.center.x,
+          implantInput.children[0].bounds.topCenter.y + implantInput.children[0].data.length * 4.6
+        ),
+
+        fillColor: 'red',
+      });
+      implantArea.size = new Size(implantInput.children[0].data.diameter * 10, implantInput.children[0].data.length * 9.5);
+      group.addChild(implantArea);
+      defaultPaper.project.activeLayer.addChild(group);
+
+      makeNewLayer();
+
+      Tools.moveTool.activate();
+    }
+  }, [implantInput]);
 
   return (
     <div style={{ cursor: moveCursor ? cursor : 'default', marginTop: '50px' }}>
       <canvas ref={canvasRef} id="canvas" style={{ border: 'solid 1px black', width: '800px', height: '600px' }} />
       <Modal open={open} setOpen={setOpen} x={x} y={y} text={text} setText={setText} />
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
+      {implantOpen && <InsertImplants implantOpen={implantOpen} setImplantOpen={setImplantOpen} setImplantInput={setImplantInput} />}
       <div>
         <span>도형 히스토리:</span>
         <button onClick={backFigureHistory}>back</button>
@@ -1072,7 +1132,14 @@ const Canvas = () => {
       <div>
         <span>이미지삽입:</span>
         <button onClick={() => setIsToothImage(!isToothImage)}>치아 이미지</button>
-        <button>임플란트식립</button>
+        <button
+          onClick={() => {
+            setImplantOpen(true);
+            defaultPaper.settings.insertItems = false;
+          }}
+        >
+          임플란트식립
+        </button>
         <button>길이 측정</button>
         <div style={{ display: isToothImage ? 'flex' : 'none', width: '180px', flexWrap: 'wrap' }}>
           <div
