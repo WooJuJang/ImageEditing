@@ -1,14 +1,21 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import Paper, { PointText, Point, Path, Tool, Project, Shape, Group, Raster } from 'paper';
+import Paper, { PointText, Point, Path, Layer, Size, Shape, Group, Raster } from 'paper';
 import { ICursorList } from '../PaperTypes';
 import Modal from './TextModal';
 
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
-import { HitResult, Rectangle, Size } from 'paper/dist/paper-core';
 
 interface IShapeTools {
   [index: string]: boolean;
+}
+interface IImplantInput {
+  crown: string;
+  implantImage: string;
+  flip: boolean;
+  tooltip: string;
+  isCrown: boolean;
+  isTooltip: boolean;
 }
 let defaultPaper: paper.PaperScope = new Paper.PaperScope();
 const hitOptions = {
@@ -17,6 +24,7 @@ const hitOptions = {
   fill: true,
   tolerance: 20,
 };
+
 const Tools = {
   penTool: new defaultPaper.Tool(),
   lineTool: new defaultPaper.Tool(),
@@ -27,9 +35,10 @@ const Tools = {
   textTool: new defaultPaper.Tool(),
   partClearTool: new defaultPaper.Tool(),
   toothImageTool: new defaultPaper.Tool(),
+  rulerTool: new defaultPaper.Tool(),
 };
 const cursorList: ICursorList = {
-  rotate: 'help',
+  rotate: 'alias',
   resize: 'se-resize',
   move: 'move',
   edit: 'text',
@@ -46,6 +55,14 @@ let currText: string | null;
 let isMove = false;
 let canvas: HTMLCanvasElement;
 let context: CanvasRenderingContext2D | null = null;
+
+let layer: paper.Layer;
+let group: paper.Group;
+let crownImage: paper.Group;
+let implantImage: paper.Group;
+let moveArea: paper.Shape;
+let rotateArea: paper.Shape;
+let unitePath: paper.PathItem;
 
 const toothImageUrls = {
   ceramic: 'https://cvboard.develop.vsmart00.com/contents/crown-ceramic.svg',
@@ -64,6 +81,7 @@ let shapeTools: IShapeTools = {
   isText: false,
   isPartClear: false,
   isToothImage: false,
+  isRuler: false,
 };
 
 const findShapeTools = (figure: string) => {
@@ -105,7 +123,6 @@ const deleteNoDragShape = () => {
   //mousedown만 있고  mousedrag가 없었던 도형
   if (path.bounds.width < 5 && path.bounds.height < 5) {
     path.remove();
-
     origin.remove();
   }
 };
@@ -277,6 +294,31 @@ const createEditField = (FigureType: string) => {
   }
 };
 
+const moveImplantInfo = (item: paper.Item, rotation: number) => {
+  let dx;
+  let dy;
+
+  if (rotation >= -90 && rotation <= 90) {
+    dx = item.bounds.bottomCenter.x;
+    dy = item.bounds.bottomCenter.y + 15;
+  } else {
+    dx = item.bounds.topCenter.x;
+    dy = item.bounds.topCenter.y;
+  }
+  pointText.bounds.center = new Point(dx, dy);
+};
+//두 포인트 사이에 거리 구하기 함수
+const getDistance = (item: paper.Path) => {
+  return item.segments[0].point.getDistance(item.segments[1].point).toFixed(2);
+};
+const moveSegment = (segment: paper.Segment, event: paper.ToolEvent) => {
+  segment.point.x += event.delta.x;
+  segment.point.y += event.delta.y;
+};
+const movePath = (path: paper.Item, event: paper.ToolEvent) => {
+  path.position.x += event.delta.x;
+  path.position.y += event.delta.y;
+};
 const Canvas = () => {
   const [open, setOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -292,7 +334,14 @@ const Canvas = () => {
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
+  const [implantInput, setImplantInput] = useState<IImplantInput>({
+    crown: '',
+    implantImage: '',
+    flip: false,
+    tooltip: '',
+    isCrown: true,
+    isTooltip: true,
+  });
   const [moveCursor, setMoveCursor] = useState(false);
   const fillColor = currColor.split(',')[0] + ',' + currColor.split(',')[1] + ',' + currColor.split(',')[2] + ',' + '0.1)';
   const initCanvas = () => {
@@ -711,15 +760,20 @@ const Canvas = () => {
         });
       } else if (hitResult.item.parent.data.type === 'implant') {
         defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
-          if (path.parent.data.ImplantFiledId === child.data.ImplantFiledId && child.data.type === 'implant') {
-            origin = child;
+          if (path.parent.data.pointTextId === child.data.pointTextId) {
+            pointText = child as paper.PointText;
 
             path.parent.data.bounds = path.parent.bounds.clone();
             path.parent.data.scaleBase = event.point.subtract(path.parent.bounds.center);
           }
         });
+      } else if (hitResult.item.data.type === 'ruler') {
+        hitResult.item.parent.children.forEach((child: paper.Item) => {
+          if (child.className === 'PointText') {
+            pointText = child as paper.PointText;
+          }
+        });
       }
-      defaultPaper.settings.handleSize = 10;
       console.log(hitResult.item);
     }
   };
@@ -756,8 +810,12 @@ const Canvas = () => {
         }
 
         setMoveCursor(true);
-      } else if (hitResult.item.parent.data.type === 'implant') {
-        console.group(event.item);
+      } else if (hitResult.item.data.type === 'crownRotateArea' || hitResult.item.data.type === 'implantRotateArea') {
+        setOption('rotate');
+        setMoveCursor(true);
+      } else if (hitResult.item.data.type === 'implantMoveArea') {
+        setOption('move');
+        setMoveCursor(true);
       } else if (hitResult.item.data.handleSize === 0) {
         setOption('move');
         setMoveCursor(true);
@@ -786,6 +844,8 @@ const Canvas = () => {
         Tools.partClearTool.activate();
       } else if (shapeTools.isToothImage) {
         Tools.toothImageTool.activate();
+      } else if (shapeTools.isRuler) {
+        Tools.rulerTool.activate();
       }
       setMoveCursor(false);
     }
@@ -821,28 +881,34 @@ const Canvas = () => {
         path.parent.bounds = newBounds.bounds;
       } else if (option === 'move') {
         //이동
-        // path.position.x += event.delta.x;
-        // path.position.y += event.delta.y;
 
-        path.parent.position.x += event.delta.x;
-        path.parent.position.y += event.delta.y;
+        movePath(path.parent, event);
+        movePath(origin, event);
+      }
+    } else if (path.data.type === 'crownRotateArea' || path.data.type === 'implantRotateArea') {
+      const center = path.parent.bounds.center;
+      const baseVec = center.subtract(event.lastPoint);
+      const nowVec = center.subtract(event.point);
+      let angle = nowVec.angle - baseVec.angle;
 
-        origin.position.x += event.delta.x;
-        origin.position.y += event.delta.y;
-      }
-    } else if (path.parent.data.type === 'implantFiled') {
-      console.log(path.parent);
-      if (path.data.type === 'crownType') {
-        const center = path.parent.bounds.center;
-        const baseVec = center.subtract(event.lastPoint);
-        const nowVec = center.subtract(event.point);
-        const angle = nowVec.angle - baseVec.angle;
-        origin.rotate(angle);
-        path.parent.rotate(angle);
-      }
+      path.parent.rotate(angle);
+      moveImplantInfo(path.parent, path.rotation);
+    } else if (path.data.type === 'implantMoveArea') {
+      movePath(path.parent, event);
+      movePath(pointText, event);
     } else if (path.data.handleSize === 0) {
-      path.position.x += event.delta.x;
-      path.position.y += event.delta.y;
+      if (path.data.type === 'ruler') {
+        if (segment) {
+          moveSegment(segment, event);
+          pointText.point = path.bounds.center;
+          pointText.content = getDistance(path);
+        } else {
+          pointText.point = path.bounds.center;
+          movePath(path.parent, event);
+        }
+      } else {
+        movePath(path, event);
+      }
     } else if (path.data.handleSize === 10) {
       if (segment) {
         if (path.data.type === 'rectangle') {
@@ -850,12 +916,10 @@ const Canvas = () => {
 
           resizeRectangle(event);
         } else {
-          segment.point.x += event.delta.x;
-          segment.point.y += event.delta.y;
+          moveSegment(segment, event);
         }
       } else if (path) {
-        path.position.x += event.delta.x;
-        path.position.y += event.delta.y;
+        movePath(path, event);
       }
     }
   };
@@ -935,6 +999,57 @@ const Canvas = () => {
     }
     Tools.moveTool.activate();
   };
+
+  Tools.rulerTool.onMouseDown = (event: paper.ToolEvent) => {
+    removeForwardHistory();
+
+    path = new Path.Line({
+      from: new defaultPaper.Point(event.point),
+      to: new defaultPaper.Point(event.point),
+      strokeColor: 'green',
+      strokeWidth: 4,
+      strokeCap: 'round',
+      strokeJoin: 'round',
+      data: { type: 'ruler' },
+    });
+
+    path.dashArray = [8, 8];
+  };
+  Tools.rulerTool.onMouseMove = (event: paper.ToolEvent) => {
+    if (event.item) {
+      Tools.moveTool.activate();
+    }
+  };
+  Tools.rulerTool.onMouseDrag = (event: paper.ToolEvent) => {
+    path.segments[1].point = event.point;
+  };
+  Tools.rulerTool.onMouseUp = (event: paper.ToolEvent) => {
+    path.data.handleSize = 0;
+    group = new Group();
+    pointText = new PointText({
+      point: path.bounds.center,
+      content: getDistance(path),
+      fillColor: 'pink',
+      strokeColor: 'pink',
+      justification: 'center',
+      fontSize: 20,
+      strokeWidth: 1,
+      data: { handleSize: 0 },
+    });
+    path.selected = false;
+    if (Number(getDistance(path)) < 5) {
+      path.remove();
+      pointText.remove();
+    } else {
+      group.addChild(path);
+      group.addChild(pointText);
+
+      makeNewLayer();
+    }
+
+    Tools.moveTool.activate();
+  };
+
   useEffect(() => {
     initCanvas();
   }, []);
@@ -1023,65 +1138,108 @@ const Canvas = () => {
 
   useEffect(() => {
     Tools.moveTool.activate();
-
     setCursor(cursorList[option]);
   }, [option]);
-  const [implantInput, setImplantInput] = useState<paper.Group | null>(null);
-
+  const [isImplantInput, setIsImplantInput] = useState(false);
   useEffect(() => {
-    if (implantInput) {
+    if (isImplantInput && implantInput) {
+      removeForwardHistory();
       defaultPaper.activate();
       defaultPaper.settings.insertItems = true;
-      implantInput.position = defaultPaper.view.center;
-      implantInput.data = { type: 'implant', ImplantFiledId: implantInput.id };
-      defaultPaper.project.activeLayer.addChild(implantInput);
 
-      const crown: paper.HitResult = defaultPaper.project.hitTest(new Point(implantInput.children[2].bounds.center));
-      crown.item.data = { type: 'crown' };
-      const upImplant: paper.HitResult = defaultPaper.project.hitTest(new Point(implantInput.children[0].bounds.topCenter));
-      upImplant.item.data = { type: 'upImplant' };
-      const downImplant: paper.HitResult = defaultPaper.project.hitTest(new Point(implantInput.children[0].bounds.center));
-      downImplant.item.data = { type: 'downImplant' };
-      // const cw = crown.item.bounds.width;
-      // const ch = crown.item.bounds.height;
-      // const iw = implant.item.bounds.width;
-      // const ih = implant.item.bounds.height;
-      // console.log(implant, iw, ih);
-      // testGroup.fitBounds(new Rectangle({ point: new Point(50, 50), size: new Size(30, 60) }));
-      // const group = new Group({
-      //   data: { type: 'implantFiled', ImplantFiledId: implantInput.id },
-      // });
-      // const crownArea = new Shape.Rectangle({
-      //   position: new Point(implantInput.children[2].bounds.center.x, implantInput.children[2].bounds.topCenter.y + 26),
-      //   fillColor: 'blue',
-      //   data: { type: 'crownType' },
-      // });
-      // crownArea.size = new Size(40, 55);
-      // group.addChild(crownArea);
-      // const implantArea = new Shape.Rectangle({
-      //   position: new Point(
-      //     implantInput.children[0].bounds.center.x,
-      //     implantInput.children[0].bounds.topCenter.y + implantInput.children[0].data.length * 8.5
-      //   ),
+      group = new Group();
+      crownImage = new Group();
+      implantImage = new Group();
+      if (implantInput.isTooltip) {
+        pointText = new PointText({
+          content: implantInput.tooltip,
+          position: new Point(defaultPaper.view.center.x - 6, defaultPaper.view.center.y + 80),
+          strokeColor: 'pink',
+          fillColor: 'pink',
+          fontSize: 15,
+        });
+        pointText.data = { pointTextId: pointText.id };
+      }
 
-      //   fillColor: 'red',
-      // });
-      // implantArea.size = new Size(implantInput.children[0].data.diameter * 10, implantInput.children[0].data.length * 17.5);
-      // group.addChild(implantArea);
-      // defaultPaper.project.activeLayer.addChild(group);
+      if (implantInput.isCrown) {
+        crownImage.importSVG(implantInput.crown, (item: paper.Item) => {
+          crownImage.position = new Point(defaultPaper.view.center.x, defaultPaper.view.center.y - 85);
 
-      makeNewLayer();
+          if (item.className === 'Group') {
+            moveArea = new Shape.Rectangle({
+              point: item.children[1].firstChild.bounds.topLeft,
+              size: new Size(item.children[1].firstChild.bounds.width as number, item.children[1].firstChild.bounds.height as number),
+              fillColor: 'red',
+              opacity: 0,
+              data: { type: 'crownRotateArea' },
+            });
+          }
+          group.addChild(crownImage);
+          group.addChild(moveArea);
+        });
+      }
+      implantImage.importSVG(implantInput.implantImage, (item: paper.Item) => {
+        unitePath = new Path();
+
+        item.position = defaultPaper.view.center;
+
+        if (item.className === 'Group') {
+          unitePath = unitePath.unite(item.children[1].firstChild as paper.PathItem);
+          unitePath.data = {
+            topLeft: item.children[1].firstChild.bounds.topLeft,
+            leftCenter: item.children[1].firstChild.bounds.leftCenter,
+            width: item.children[1].firstChild.bounds.width,
+            height: item.children[1].firstChild.bounds.height,
+          };
+        }
+
+        unitePath.closePath();
+        unitePath.visible = false;
+        moveArea = new Shape.Rectangle({
+          point: implantInput.isCrown ? unitePath.data.topLeft : unitePath.data.leftCenter,
+
+          size: new Size(unitePath.data.width as number, (unitePath.data.height as number) * 0.5),
+          strokeColor: 'red',
+          fillColor: 'red',
+          opacity: 0,
+          data: { type: 'implantMoveArea' },
+        });
+
+        rotateArea = moveArea.clone();
+
+        rotateArea.data = { type: 'implantRotateArea' };
+        rotateArea.fillColor = 'blue' as unknown as paper.Color;
+        rotateArea.strokeColor = 'blue' as unknown as paper.Color;
+        rotateArea.scale(1.5, 2, implantInput.isCrown ? moveArea.bounds.topCenter : moveArea.bounds.bottomCenter);
+        moveArea.insertAbove(rotateArea);
+        group.addChild(implantImage);
+        group.addChild(rotateArea);
+        group.addChild(moveArea);
+
+        group.data = { type: 'implant', pointTextId: pointText.id };
+        if (implantInput.flip) {
+          group.rotate(180);
+          moveImplantInfo(group, 180);
+        }
+        makeNewLayer();
+      });
 
       Tools.moveTool.activate();
     }
-  }, [implantInput]);
-
+  }, [isImplantInput]);
   return (
     <div style={{ cursor: moveCursor ? cursor : 'default', marginTop: '50px' }}>
-      <canvas ref={canvasRef} id="canvas" style={{ border: 'solid 1px black', width: '800px', height: '600px' }} />
+      <canvas ref={canvasRef} id="canvas" style={{ border: 'solid 1px black', width: '1200px', height: '750px' }} />
       <Modal open={open} setOpen={setOpen} x={x} y={y} text={text} setText={setText} />
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
-      {implantOpen && <InsertImplants implantOpen={implantOpen} setImplantOpen={setImplantOpen} setImplantInput={setImplantInput} />}
+      {implantOpen && (
+        <InsertImplants
+          implantOpen={implantOpen}
+          setImplantOpen={setImplantOpen}
+          setImplantInput={setImplantInput}
+          setIsImplantInput={setIsImplantInput}
+        />
+      )}
       <div>
         <span>도형 히스토리:</span>
         <button onClick={backFigureHistory}>back</button>
@@ -1155,12 +1313,20 @@ const Canvas = () => {
         <button
           onClick={() => {
             setImplantOpen(true);
+            setIsImplantInput(false);
             defaultPaper.settings.insertItems = false;
           }}
         >
           임플란트식립
         </button>
-        <button>길이 측정</button>
+        <button
+          onClick={() => {
+            findShapeTools('isRuler');
+            Tools.rulerTool.activate();
+          }}
+        >
+          길이 측정
+        </button>
         <div style={{ display: isToothImage ? 'flex' : 'none', width: '180px', flexWrap: 'wrap' }}>
           <div
             style={{

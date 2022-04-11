@@ -1,67 +1,77 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Paper, { Raster, PointText, Group, Point, Tool, Size, Rectangle } from 'paper';
-
+interface IImplantInput {
+  crown: string;
+  implantImage: string;
+  flip: boolean;
+  tooltip: string;
+  isCrown: boolean;
+  isTooltip: boolean;
+}
 interface IInsertImplantsModalProp {
   implantOpen: boolean;
   setImplantOpen: (value: boolean) => void;
-  setImplantInput: (value: paper.Group) => void;
+  setImplantInput: (value: IImplantInput) => void;
+  setIsImplantInput: (value: boolean) => void;
 }
 interface IImplantInfo {
   Diameter: number;
   Length: number;
   image: string;
+  tooltip: string;
 }
 interface ICrownInfo {
   crownType: string;
   image: string;
 }
+
 let implantCanvas: HTMLCanvasElement;
 let implantContext: CanvasRenderingContext2D | null = null;
 let implantPaper: paper.PaperScope = new Paper.PaperScope();
 
 let implantGroup: paper.Group;
-let implantImage: paper.Group;
+let implantImage: paper.Raster;
 let implantInfo: paper.PointText;
-let crown: paper.Group;
+let crown: paper.Raster;
 
+let implantInput: IImplantInput = {
+  crown: '',
+  implantImage: '',
+  flip: false,
+  tooltip: '',
+  isCrown: true,
+  isTooltip: true,
+};
 const ImplantInfo: IImplantInfo[] = [
-  { Diameter: 2.0, Length: 8.5, image: 'implants/implant-20-x-85.svg' },
-  { Diameter: 2.0, Length: 10, image: 'implants/implant-20-x-100.svg' },
-  { Diameter: 2.0, Length: 11.5, image: 'implants/implant-20-x-115.svg' },
-  { Diameter: 3.5, Length: 8.5, image: 'implants/implant-35-x-85.svg' },
-  { Diameter: 3.5, Length: 10, image: 'implants/implant-35-x-100.svg' },
-  { Diameter: 3.5, Length: 11.5, image: 'implants/implant-35-x-115.svg' },
-  { Diameter: 3.5, Length: 13, image: 'implants/implant-35-x-130.svg' },
-  { Diameter: 4.5, Length: 7, image: 'implants/implant-45-x-70.svg' },
-  { Diameter: 4.5, Length: 8.5, image: 'implants/implant-45-x-85.svg' },
-  { Diameter: 4.5, Length: 10, image: 'implants/implant-45-x-100.svg' },
-  { Diameter: 4.5, Length: 11.5, image: 'implants/implant-45-x-115.svg' },
-  { Diameter: 4.5, Length: 13, image: 'implants/implant-45-x-130.svg' },
+  { Diameter: 2.0, Length: 8.5, image: 'implants/implant-20-x-85.svg', tooltip: '2.0x8.5' },
+  { Diameter: 2.0, Length: 10, image: 'implants/implant-20-x-100.svg', tooltip: '2.0x10' },
+  { Diameter: 2.0, Length: 11.5, image: 'implants/implant-20-x-115.svg', tooltip: '2.0x11.5' },
+  { Diameter: 3.5, Length: 8.5, image: 'implants/implant-35-x-85.svg', tooltip: '3.5x8.5' },
+  { Diameter: 3.5, Length: 10, image: 'implants/implant-35-x-100.svg', tooltip: '3.5x10' },
+  { Diameter: 3.5, Length: 11.5, image: 'implants/implant-35-x-115.svg', tooltip: '3.5x11.5' },
+  { Diameter: 3.5, Length: 13, image: 'implants/implant-35-x-130.svg', tooltip: '3.5x13' },
+  { Diameter: 4.5, Length: 7, image: 'implants/implant-45-x-70.svg', tooltip: '4.5x7' },
+  { Diameter: 4.5, Length: 8.5, image: 'implants/implant-45-x-85.svg', tooltip: '4.5x8.5' },
+  { Diameter: 4.5, Length: 10, image: 'implants/implant-45-x-100.svg', tooltip: '4.5x10' },
+  { Diameter: 4.5, Length: 11.5, image: 'implants/implant-45-x-115.svg', tooltip: '4.5x11.5' },
+  { Diameter: 4.5, Length: 13, image: 'implants/implant-45-x-130.svg', tooltip: '4.5x13' },
 ];
+
 const crownInfo: ICrownInfo[] = [
   { crownType: 'anterior', image: 'implants/implant-anterior.svg' },
   { crownType: 'posterior', image: 'implants/implant-posterior.svg' },
   { crownType: 'none', image: '' },
 ];
-const drawImplant = () => {
-  implantGroup = new Group({ data: { type: 'implant' } });
-  implantGroup.addChild(implantImage);
-  implantGroup.addChild(implantInfo);
-  implantGroup.addChild(crown);
-  new Raster({
-    source: 'contents/flipup.svg',
-    position: new Point(implantPaper.view.bounds.bottomRight.x - 30, implantPaper.view.bounds.bottomRight.y - 30),
-    data: { type: 'flip' },
-  });
-};
 
 const flipTool = new Tool();
-const removeIndex: number[] = [];
 
-const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInsertImplantsModalProp) => {
+const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput, setIsImplantInput }: IInsertImplantsModalProp) => {
   const implantsCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isCrown, setIsCrown] = useState(true);
-  const [isImplantInfo, setIsImplantInfo] = useState(true);
+  const [crownType, setCrownType] = useState('anterior');
+  const [isTooltip, setIsTooltip] = useState(true);
+  const [implantType, setImplantType] = useState<IImplantInfo>(ImplantInfo[0]);
+  const [isFlip, setIsFlip] = useState<boolean>(false);
   const initCanvas = () => {
     if (!implantsCanvasRef.current) {
       return { implantCanvas, implantContext };
@@ -71,6 +81,7 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInser
     implantContext = implantCanvas.getContext('2d');
 
     implantPaper.setup(implantCanvas);
+    implantPaper.activate();
 
     return { implantCanvas, implantContext };
   };
@@ -83,61 +94,83 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInser
       return;
     }
     if (hitResult.item.data.type === 'flip') {
-      implantGroup.scale(-1);
-      implantInfo.scale(-1);
-      drawImplant();
+      setIsFlip(!isFlip);
     }
   };
 
-  const onClose = (e: React.MouseEvent) => {
+  const onClose = useCallback((e: React.MouseEvent) => {
     if (ref.current === e.target) {
       setImplantOpen(false);
     }
-  };
+  }, []);
 
   const onChangeCrownCheckBox = () => {
+    implantInput.isCrown = !isCrown;
     setIsCrown(!isCrown);
   };
   const onChangeImplantInfoCheckBox = () => {
-    setIsImplantInfo(!isImplantInfo);
+    implantInput.isTooltip = !isTooltip;
+    setIsTooltip(!isTooltip);
   };
-  const drawCrown = (crownType: string) => {
+
+  const drawImplant = () => {
     implantPaper.activate();
-    implantPaper.project.activeLayer.removeChildren();
+
     crownInfo.forEach((data: ICrownInfo) => {
       if (crownType === data.crownType) {
-        crown = new Group();
-        crown.importSVG(data.image, (item: any) => {
-          item.position = new Point(implantPaper.view.center.x, implantPaper.view.center.y - 85);
-          // item.data = { type: 'crown' };
-          drawImplant();
+        implantInput.crown = data.image;
+        crown = new Raster({
+          source: data.image,
+          position: new Point(implantPaper.view.center.x, implantPaper.view.center.y - 85),
+          data: { type: 'crown' },
         });
       }
     });
-  };
-  const drawImplants = (data: IImplantInfo) => {
-    implantPaper.activate();
-    implantPaper.project.activeLayer.removeChildren();
 
-    implantImage = new Group({
-      data: { type: 'implantImage', diameter: data.Diameter, length: data.Length },
+    implantImage = new Raster({
+      source: implantType.image,
+      position: implantPaper.view.center,
+      data: { type: 'implantImage', diameter: implantType.Diameter, length: implantType.Length },
     });
-    implantImage.importSVG(data.image, (item: any) => {
-      implantImage.position = implantPaper.view.center;
-    });
+
     implantInfo = new PointText({
-      content: String(data.Diameter) + 'x' + String(data.Length),
+      content: implantType.tooltip,
       fillColor: 'yellow',
       position: new Point(implantPaper.view.center.x, implantPaper.view.center.y + 80),
       data: { type: 'implantInfo' },
     });
-    implantInfo.visible = isImplantInfo;
-    drawImplant();
+    implantInput.implantImage = implantType.image;
+    implantInput.tooltip = implantType.tooltip;
+    implantInput.flip = isFlip;
+    if (isFlip) {
+      const implant = new Group();
+      implant.addChild(crown);
+      implant.addChild(implantImage);
+      implant.addChild(implantInfo);
+      implant.scale(-1);
+      implantInfo.rotate(180);
+    }
+    new Raster({
+      source: 'contents/flipup.svg',
+      position: new Point(implantPaper.view.bounds.bottomRight.x - 30, implantPaper.view.bounds.bottomRight.y - 30),
+      data: { type: 'flip' },
+    });
   };
+
+  useEffect(() => {
+    if (implantPaper.project) {
+      implantPaper.project.activeLayer.removeChildren();
+
+      drawImplant();
+      implantInfo.visible = isTooltip;
+      crown.visible = isCrown;
+    }
+  }, [isCrown, isTooltip, crownType, implantType, isFlip]);
+
   const MakeImplantInfoTable: Function = (): JSX.Element[] => {
     return ImplantInfo.map((data: IImplantInfo, index: number) => {
       return (
-        <tr key={index} style={{ display: 'table', width: '100%' }} onClick={() => drawImplants(data)}>
+        <tr key={index} style={{ display: 'table', width: '100%' }} onClick={() => setImplantType(data)}>
           <th style={{ width: '50%' }}>{data.Diameter}</th>
           <th style={{ width: '50%' }}>{data.Length}</th>
         </tr>
@@ -146,22 +179,8 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInser
   };
 
   const inputImplant = () => {
-    implantGroup.children.forEach((data: paper.Item) => {
-      if (!data.visible) {
-        removeIndex.push(data.id);
-      }
-    });
-
-    removeIndex.forEach((index: number) => {
-      implantGroup.children.forEach((data: paper.Item) => {
-        if (index === data.id) {
-          data.remove();
-        }
-      });
-    });
-
-    setImplantInput(implantGroup);
-
+    setImplantInput(implantInput);
+    setIsImplantInput(true);
     setImplantOpen(false);
   };
 
@@ -175,19 +194,19 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInser
         }
       }
       if (implantInfo) {
-        if (isImplantInfo) {
+        if (isTooltip) {
           implantInfo.visible = true;
         } else {
           implantInfo.visible = false;
         }
       }
     }
-  }, [isCrown, isImplantInfo]);
+  }, [isCrown, isTooltip]);
   useEffect(() => {
     initCanvas();
-
-    drawCrown('anterior');
-    drawImplants(ImplantInfo[0]);
+    drawImplant();
+    // drawCrown('anterior');
+    // drawImplants(ImplantInfo[0]);
   }, []);
   useEffect(() => {
     if (implantOpen) {
@@ -249,18 +268,17 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput }: IInser
                     {' '}
                     <input type="checkbox" checked={isCrown} onChange={onChangeCrownCheckBox}></input>Display Crown
                   </label>
-                  <button disabled={!isCrown} onClick={() => drawCrown('anterior')}>
+                  <button disabled={!isCrown} onClick={() => setCrownType('anterior')}>
                     ANTERIOR
                   </button>
-                  <button disabled={!isCrown} onClick={() => drawCrown('posterior')}>
+                  <button disabled={!isCrown} onClick={() => setCrownType('posterior')}>
                     POSTERIOR
                   </button>
                 </div>
                 <div className="preview canvas implant-info">
                   <label>
                     {' '}
-                    <input type="checkbox" checked={isImplantInfo} onChange={onChangeImplantInfoCheckBox}></input>Implant diameter,length
-                    info
+                    <input type="checkbox" checked={isTooltip} onChange={onChangeImplantInfoCheckBox}></input>Implant diameter,length info
                   </label>
                 </div>
                 <div className="preview canvas" style={{ width: '100%' }}>
