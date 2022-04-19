@@ -1,11 +1,11 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import Paper, { PointText, Point, Path, Layer, Size, Shape, Group, Raster } from 'paper';
+import Paper, { PointText, Point, Path, Raster, Size, Shape, Group, Rectangle, Tool } from 'paper';
 import { ICursorList } from '../PaperTypes';
 import Modal from './TextModal';
 
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
-
+import { Layer, PaperScope } from 'paper/dist/paper-core';
 interface IShapeTools {
   [index: string]: boolean;
 }
@@ -17,15 +17,25 @@ interface IImplantInput {
   isCrown: boolean;
   isTooltip: boolean;
 }
+const papers: paper.PaperScope[] = [];
+let paper: paper.PaperScope;
+// const papers = {
+//   paper1: new Paper.PaperScope(),
+//   paper2: new Paper.PaperScope(),
+// };
+let currentLayerIndex = 0;
 let defaultPaper: paper.PaperScope = new Paper.PaperScope();
+
+const width = 1000;
+const height = 750;
 const hitOptions = {
   segments: true,
   stroke: true,
   fill: true,
   tolerance: 20,
 };
-
-const Tools = {
+const direction = ['up', 'bottom', 'left', 'right'];
+let Tools = {
   penTool: new defaultPaper.Tool(),
   lineTool: new defaultPaper.Tool(),
   moveTool: new defaultPaper.Tool(),
@@ -36,6 +46,7 @@ const Tools = {
   partClearTool: new defaultPaper.Tool(),
   toothImageTool: new defaultPaper.Tool(),
   rulerTool: new defaultPaper.Tool(),
+  cropTool: new defaultPaper.Tool(),
 };
 const cursorList: ICursorList = {
   rotate: 'alias',
@@ -63,7 +74,28 @@ let implantImage: paper.Group;
 let moveArea: paper.Shape;
 let rotateArea: paper.Shape;
 let unitePath: paper.PathItem;
-
+const layeroutTemplete = [
+  {
+    name: '1x1',
+    size: [1, 1],
+    scale: [1, 1],
+  },
+  {
+    name: '2x1',
+    size: [0.5, 1],
+    scale: [0.5, 1],
+  },
+  {
+    name: '2x2',
+    size: [0.5, 0.5],
+    scale: [0.5, 0.5],
+  },
+  {
+    name: '3x2',
+    size: [0.3333, 0.5],
+    scale: [0.3333, 0.5],
+  },
+];
 const toothImageUrls = {
   ceramic: 'https://cvboard.develop.vsmart00.com/contents/crown-ceramic.svg',
   gold: 'https://cvboard.develop.vsmart00.com/contents/crown-gold.svg',
@@ -82,6 +114,7 @@ let shapeTools: IShapeTools = {
   isPartClear: false,
   isToothImage: false,
   isRuler: false,
+  isCrop: false,
 };
 
 const findShapeTools = (figure: string) => {
@@ -173,13 +206,7 @@ const removeForwardHistory = () => {
     currLayerIndex = 1;
   }
 };
-// const checkPointTextType = (x: any): x is paper.PointText => {
-//   return x.content;
-// };
-// interface IEditField {
-//   bounds: paper.Rectangle;
-//   type: string;
-// }
+
 //텍스트,이미지,임플란트에 대한 편집 필드만들기
 const createEditField = (FigureType: string) => {
   if (FigureType === 'Raster') {
@@ -311,18 +338,221 @@ const moveImplantInfo = (item: paper.Item, rotation: number) => {
 const getDistance = (item: paper.Path) => {
   return item.segments[0].point.getDistance(item.segments[1].point).toFixed(2);
 };
+//편집점 이동
 const moveSegment = (segment: paper.Segment, event: paper.ToolEvent) => {
   segment.point.x += event.delta.x;
   segment.point.y += event.delta.y;
 };
+//도형 이동
 const movePath = (path: paper.Item, event: paper.ToolEvent) => {
   path.position.x += event.delta.x;
   path.position.y += event.delta.y;
 };
+let cropCircleButton: paper.Shape;
+const makeCropField = (from: paper.Point, to: paper.Point) => {
+  group = new Group({ selected: false });
+  shape = new Shape.Rectangle({
+    from: from,
+    to: to,
+    fillColor: 'rgba(135,212,233,0.3)',
+    strokeColor: 'rgba(135,212,233,1)',
+    dashArray: [8, 8],
+    data: { type: 'cropField' },
+  });
+  cropCircleButton = new Shape.Circle({
+    center: shape.bounds.center,
+    selected: false,
+    fillColor: 'rgba(135,212,233,1)',
+  });
+  pointText = new PointText({
+    point: shape.bounds.center,
+    content: 'Click',
+    fillColor: 'white',
+    justification: 'center',
+    selected: false,
+  });
+  group.addChild(shape);
+};
+const makeCropButton = () => {
+  cropCircleButton.position = shape.bounds.center;
+  const smaller = Math.min(shape.bounds.width, shape.bounds.height);
+  if (smaller < 65) {
+    cropCircleButton.radius = smaller * 0.3;
+  } else {
+    cropCircleButton.radius = 20;
+  }
+  pointText.position = shape.bounds.center;
+  pointText.fontSize = cropCircleButton.radius * 0.8;
+  pointText.insertAbove(cropCircleButton);
+};
+const makeCropEditField = () => {
+  const top = shape.clone();
+  top.bounds.topCenter = shape.bounds.topCenter;
+  top.bounds.height = 10;
+  top.data = { type: 'up' };
+  top.opacity = 0;
+  const bottom = shape.clone();
+  bottom.bounds.topCenter = shape.bounds.bottomCenter;
+  bottom.bounds.height = -10;
+  bottom.data = { type: 'bottom' };
+  bottom.opacity = 0;
+  const left = shape.clone();
+  left.bounds.topLeft = shape.bounds.topLeft;
+  left.bounds.width = 10;
+  left.data = { type: 'left' };
+  left.opacity = 0;
+
+  const right = shape.clone();
+  right.bounds.topLeft = shape.bounds.topRight;
+  right.bounds.width = -10;
+  right.data = { type: 'right' };
+  right.opacity = 0;
+  group.data = { type: 'crop' };
+  const cropButtonGroup = new Group([cropCircleButton, pointText]);
+  cropButtonGroup.data = { type: 'cropButtonGroup' };
+  cropCircleButton.addChild(pointText);
+  group.addChild(cropButtonGroup);
+  group.addChild(top);
+  group.addChild(bottom);
+  group.addChild(left);
+  group.addChild(right);
+};
+let backgroundImage = {
+  width: 1202,
+  height: 752,
+};
+const getImageRegion = (image: paper.Raster, region: paper.Rectangle) => {
+  console.log(region);
+  const contentWidth = backgroundImage.width;
+  const contentHeight = backgroundImage.height;
+  const bound0 = new Point((region.x * image.width) / contentWidth, (region.y * image.height) / contentHeight);
+  const bound1 = new Point(
+    ((region.x + region.width) * image.width) / contentWidth,
+    ((region.y + region.height) * image.height) / contentHeight
+  );
+
+  return new Rectangle(bound0, bound1);
+};
+const getGuideBounds = (child: paper.Item) => {
+  const contentWidth = 1202;
+  const contentHeight = 752;
+  console.log(contentHeight, contentWidth);
+  const bound0 = defaultPaper.project.layers[0].children[0].bounds;
+  const bound1 = child.bounds;
+  console.log(bound0, bound1);
+  const point0 = new Point(bound1.x - bound0.x, bound1.y - bound0.y);
+  const point1 = new Point((point0.x * contentWidth) / bound0.width, (point0.y * contentHeight) / bound0.height);
+  const point2 = new Point(bound1.x + bound1.width - bound0.x, bound1.y + bound1.height - bound0.y);
+  const point3 = new Point((point2.x * contentWidth) / bound0.width, (point2.y * contentHeight) / bound0.height);
+
+  return new Rectangle(point1, point3);
+};
+let historyGroup: paper.Group;
+const crop = (child: paper.Item) => {
+  if (child) {
+    // const bounds = getGuideBounds(child);
+    // const test: paper.Rectangle = getImageRegion(defaultPaper.project.layers[0].children[0] as paper.Raster, bounds);
+    // const image = (defaultPaper.project.layers[0].children[0] as paper.Raster).getSubRaster(test);
+    // image.fitBounds(child.view.bounds);
+
+    // console.log(test, image, child.view.bounds);
+    // defaultPaper.project.layers[0].children[0].remove();
+    // makeNewLayer();
+
+    const imageBounds = defaultPaper.project.layers[0].children[0].bounds;
+    console.log(imageBounds);
+    const bounds = new Rectangle({
+      from: child.bounds.topLeft.subtract(imageBounds.topLeft),
+      to: child.bounds.bottomRight.subtract(imageBounds.topLeft),
+    });
+    const subRaster = (defaultPaper.project.layers[0].children[0] as paper.Raster).getSubRaster(bounds);
+    console.log('view bounds >>> ', child.view.bounds);
+    subRaster.fitBounds(child.view.bounds);
+    defaultPaper.project.layers[0].children[0].remove();
+
+    // child.remove();
+    // defaultPaper.project.layers[0].lastChild.matrix.translate(subRaster.bounds.x, subRaster.bounds.y);
+    // console.log(subRaster.bounds.width / backgroundImage.width);
+    // console.log(subRaster.bounds.height / backgroundImage.height);
+    // defaultPaper.project.layers[0].matrix.scale(
+    //   subRaster.bounds.width / backgroundImage.width,
+    //   subRaster.bounds.height / backgroundImage.height
+    // );
+
+    // defaultPaper.project.layers[0].children[1].matrix.reset();
+
+    // = subRaster.bounds.center;
+    // const a = subRaster.bounds.topLeft.x - child.bounds.topLeft.x;
+    // const b = subRaster.bounds.topLeft.y - child.bounds.topLeft.y;
+    // console.log(a, b);
+
+    // console.log('before scale center >>> ', defaultPaper.project.layers.at(-1)?.children[0].bounds.center);
+    // console.log('center >>> ', child.bounds.center);
+    // console.log(subRaster);
+    console.log(
+      '편집 영역 >>> ',
+      child.bounds.center,
+      'fitBounds한 영역 >>',
+      subRaster.bounds.center,
+      '차이 >>> ',
+      child.bounds.center.subtract(subRaster.bounds.center),
+      '편집 영역에 차이만큼 더하기 >> ',
+      child.bounds.center.subtract(subRaster.bounds.height / child.bounds.height)
+    );
+    console.log(defaultPaper.project.layers);
+
+    defaultPaper.project.layers[0].children.forEach((item: paper.Item) => {
+      if (item.data.type === 'history') {
+        console.log(subRaster.bounds.width / child.bounds.width, subRaster.bounds.height / child.bounds.height);
+        item.scale(subRaster.bounds.width / child.bounds.width, subRaster.bounds.height / child.bounds.height);
+        // item.position.x -= child.bounds.topLeft.x - subRaster.bounds.topLeft.x;
+        // item.position.y -= child.bounds.topLeft.y - subRaster.bounds.topLeft.y;
+      }
+    });
+
+    // defaultPaper.project.layers.at(-1)?.scale(subRaster.bounds.width / child.bounds.width, subRaster.bounds.height / child.bounds.height);
+    console.log(subRaster.bounds.topLeft, child.bounds.topLeft);
+    // defaultPaper.project.layers.at(-1)?.translate(subRaster.bounds.topLeft.subtract(child.bounds.topLeft));
+
+    //  defaultPaper.project.layers.at(-1)?.translate(new Point(-imageBounds.x, -imageBounds.y));
+    // console.log(defaultPaper.project.layers.at(-1));
+    // new Shape.Circle({ center: subRaster.bounds.center, radius: 50, fillColor: 'pink' });
+
+    // //   defaultPaper.project.layers
+    // //     .at(-1)
+    // //     ?.children[0].scale(child.view.bounds.width / child.bounds.width, child.view.bounds.height / child.bounds.height);
+    // console.log('after scale center >>> ', defaultPaper.project.layers.at(-1)?.children[0].bounds.center);
+    // // const aspectRatio = child.view.bounds.width / child.bounds.width;
+    // const realx = defaultPaper?.project.layers.at(-1)?.children[0].bounds.center;
+    // // const calcScaleX = aspectRatio * (realx as number);
+    // console.log('real x >> ', realx);
+    // new Shape.Circle({ point: realx, size: 100, fillColor: 'skyblue' });
+  }
+};
+const canvasWidthSize = (surface: number) => {
+  if (surface === 1) {
+    return 1000 / 1;
+  } else if (surface <= 4) {
+    return 1000 / 2;
+  } else {
+    return 1000 / 3;
+  }
+};
+
+const canvasHeightSize = (surface: number) => {
+  if (surface < 4) {
+    return 750;
+  } else {
+    return 750 / 2;
+  }
+};
+
+const canvasRefs: React.RefObject<HTMLCanvasElement>[] = [];
 const Canvas = () => {
   const [open, setOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const [implantOpen, setImplantOpen] = useState<boolean>(false);
+  const [currentImage, setCurrentImage] = useState('');
   const [option, setOption] = useState('');
   const [isEditText, setIsEditText] = useState(false);
   const [cursor, setCursor] = useState('default');
@@ -333,7 +563,19 @@ const Canvas = () => {
   const [size, setSize] = useState(1);
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
+  const [surface, setSurface] = useState(1);
+  const [canvasWidth, setCanvasWidth] = useState(width);
+  const [canvasHeight, setCanvasHeight] = useState(height);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const canvass = [
+    { id: 'canvas1', canvas_Ref: useRef<HTMLCanvasElement>(null) },
+    { id: 'canvas2', canvas_Ref: useRef<HTMLCanvasElement>(null) },
+    { id: 'canvas3', canvas_Ref: useRef<HTMLCanvasElement>(null) },
+    { id: 'canvas4', canvas_Ref: useRef<HTMLCanvasElement>(null) },
+    { id: 'canvas5', canvas_Ref: useRef<HTMLCanvasElement>(null) },
+    { id: 'canvas6', canvas_Ref: useRef<HTMLCanvasElement>(null) },
+  ];
   const [implantInput, setImplantInput] = useState<IImplantInput>({
     crown: '',
     implantImage: '',
@@ -343,35 +585,103 @@ const Canvas = () => {
     isTooltip: true,
   });
   const [moveCursor, setMoveCursor] = useState(false);
-  const fillColor = currColor.split(',')[0] + ',' + currColor.split(',')[1] + ',' + currColor.split(',')[2] + ',' + '0.1)';
-  const initCanvas = () => {
+  // const fillColor = currColor.split(',')[0] + ',' + currColor.split(',')[1] + ',' + currColor.split(',')[2] + ',' + '0.1)';
+  const [r, g, b] = currColor.split(',');
+  const fillColor = `${r},${g},${b},0.1`;
+  const MakeCanvas: Function = (): JSX.Element[] => {
+    const result = [];
+    for (let i = 0; i < surface; i++) {
+      // canvasRefs[i] = useRef<HTMLCanvasElement>(null);
+      const id = 'canvas' + String(i + 1);
+      result.push(
+        <canvas
+          key={i}
+          // ref={canvass.canvas1_Ref}
+          ref={canvasRefs[i]}
+          id={id}
+          style={{
+            width: width,
+            height: height,
+            backgroundColor: 'black',
+            // display: surface >= 1 ? 'block' : 'none',
+          }}
+          onMouseDown={() => {
+            defaultPaper.projects[0].activate();
+          }}
+        />
+      );
+    }
+    return result;
+  };
+  const setPreview = (layerNum: number) => {
+    const canvasWidth = canvasWidthSize(surface);
+    const canvasHeight = canvasHeightSize(surface);
+
+    // const canvasWidth = width;
+    // const canvasHeight = height;
+    const number = new PointText({
+      point: new Point(0, 0),
+      fontSize: 24,
+      fontWeight: 'bold',
+      justification: 'center',
+      fillColor: 'green',
+    });
+    number.content = String(layerNum);
+
+    number.fitBounds(
+      new Rectangle({
+        x: width * 0.25,
+        y: height * 0.25,
+        width: width * 0.5,
+        height: height * 0.5,
+      })
+    );
+    const message = new PointText({
+      point: new Point(0, 0),
+      fontSize: 24,
+      justification: 'center',
+      fillColor: 'green',
+    });
+    message.content = '*Select image';
+    message.fitBounds(
+      new Rectangle({
+        x: width * 0.35,
+        y: height * 0.7,
+        width: width * 0.3,
+        height: height * 0.15,
+      })
+    );
+    setCurrentImage('');
+  };
+
+  const initCanvas = (layerNum: number, canvasRef: React.RefObject<HTMLCanvasElement>) => {
     if (!canvasRef.current) {
       return { canvas, context };
     }
     canvas = canvasRef.current;
-    context = canvas.getContext('2d');
-    //defaultPaper = new Paper.PaperScope();
-    // Paper.setup(canvas);
+    // canvas.style.display = 'block';
     defaultPaper.setup(canvas);
-    defaultPaper.activate();
+    const background = new Paper.Layer();
+    background.name = 'background';
+    const sketch = new Paper.Layer();
+    sketch.name = 'sketch';
 
-    return { canvas, context };
+    sketch.activate();
+    setPreview(layerNum);
   };
-
-  //마우스 이벤트
-  Tools.penTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeForwardHistory();
-
+  Tools.penTool.onMouseDown = (event: paper.ToolEvent): void => {
+    //removeForwardHistory();
     defaultPaper.settings.handleSize = 0;
-    path = new Path({
+    path = new defaultPaper.Path({
       segments: [event.point],
       strokeColor: currColor,
       strokeWidth: size,
     });
+    historyGroup = new Group({ data: { type: 'history' } });
   };
   Tools.penTool.onMouseMove = (event: paper.ToolEvent) => {
     if (event.item) {
-      Tools.moveTool.activate();
+      // Tools.moveTool.activate();
     }
   };
   Tools.penTool.onMouseDrag = (event: paper.ToolEvent) => {
@@ -381,16 +691,19 @@ const Canvas = () => {
   Tools.penTool.onMouseUp = (event: paper.ToolEvent) => {
     path.data.handleSize = 0;
     path.simplify(10);
-
-    makeNewLayer();
-
+    historyGroup.bounds = path.view.bounds;
+    historyGroup.addChild(path);
+    historyGroup.addChild(new Shape.Rectangle({ from: new Point(300, 300), to: new Point(400, 400), fillColor: 'red' }));
+    // defaultPaper.project.addLayer(new Layer(historyGroup));
+    // defaultPaper.project.layers[0].activate();
+    // makeNewLayer();
     Tools.moveTool.activate();
   };
-
   Tools.lineTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeForwardHistory();
+    //removeForwardHistory();
+    console.log('line');
     defaultPaper.settings.handleSize = 10;
-    path = new Path({
+    path = new defaultPaper.Path({
       segments: [event.point],
       strokeColor: currColor,
       strokeWidth: size,
@@ -409,7 +722,7 @@ const Canvas = () => {
 
     path.data.handleSize = 10;
 
-    makeNewLayer();
+    // makeNewLayer();
     Tools.moveTool.activate();
   };
   Tools.straightTool.onMouseDown = (event: paper.ToolEvent) => {
@@ -714,12 +1027,18 @@ const Canvas = () => {
         currLayerIndex = 1;
       }
     }
-
     path = hitResult.item as paper.Path;
     segment = hitResult.segment;
 
     if (hitResult) {
-      if (option === 'edit') {
+      if (hitResult.item.parent.data.type === 'cropButtonGroup') {
+        defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
+          if (child.data.type === 'crop') {
+            crop(child);
+            // child.remove();
+          }
+        });
+      } else if (option === 'edit') {
         defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
           if (hitResult.item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
             origin = child;
@@ -742,6 +1061,7 @@ const Canvas = () => {
         setOpen(true);
         setIsEditText(true);
       }
+
       if (hitResult.item.parent.data.type === 'Raster') {
         defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
           if (path.parent.data.RasterId === child.data.RasterId && child.className === 'Raster') {
@@ -773,8 +1093,22 @@ const Canvas = () => {
             pointText = child as paper.PointText;
           }
         });
+      } else if (hitResult.item.parent.data.type === 'crop') {
+        for (let element of direction) {
+          if (element === hitResult.item.data.type) {
+            origin = hitResult.item.parent.clone();
+          }
+        }
       }
-      console.log(hitResult.item);
+      // else if (hitResult.item.parent.data.type === '"cropButtonGroup"') {
+      //   console.log('?');
+      //   defaultPaper.project.layers[0].children.forEach((child: paper.Item) => {
+      //     if (child.data.type === 'crop') {
+      //       crop(child);
+      //       // child.remove();
+      //     }
+      //   });
+      // }
     }
   };
 
@@ -789,15 +1123,7 @@ const Canvas = () => {
 
       if (hitResult.item.parent.data.type === 'PointText') {
         event.item.selected = false;
-        if (hitResult.item.data.option === 'resize') {
-          setOption('resize');
-        } else if (hitResult.item.data.option === 'rotate') {
-          setOption('rotate');
-        } else if (hitResult.item.data.option === 'move') {
-          setOption('move');
-        } else if (hitResult.item.data.option === 'edit') {
-          setOption('edit');
-        }
+        setOption(hitResult.item.data.option);
         setMoveCursor(true);
       } else if (hitResult.item.parent.data.type === 'Raster') {
         event.item.selected = false;
@@ -817,6 +1143,10 @@ const Canvas = () => {
         setOption('move');
         setMoveCursor(true);
       } else if (hitResult.item.data.handleSize === 0) {
+        if (hitResult.item.parent.data.type === 'crop') {
+          event.item.selected = false;
+          event.item.parent.selected = false;
+        }
         setOption('move');
         setMoveCursor(true);
       } else if (hitResult.item.data.handleSize === 10) {
@@ -855,7 +1185,6 @@ const Canvas = () => {
     if (path === null) {
       return;
     }
-
     if (path.parent.data.type === 'PointText' || path.parent.data.type === 'Raster') {
       if (option === 'rotate') {
         // 회전
@@ -870,18 +1199,14 @@ const Canvas = () => {
         //크기 조절
 
         const bounds = path.parent.data.bounds;
-        //const bounds = path.parent.bounds;
         const scale = event.point.subtract(bounds.center).length / path.parent.data.scaleBase.length;
         const tlVec = bounds.topLeft.subtract(bounds.center).multiply(scale);
         const brVec = bounds.bottomRight.subtract(bounds.center).multiply(scale);
         const newBounds = new Shape.Rectangle(new Point(tlVec.add(bounds.center)), new Point(brVec.add(bounds.center)));
-        // path.bounds = newBounds.bounds;
 
         origin.bounds = newBounds.bounds;
         path.parent.bounds = newBounds.bounds;
       } else if (option === 'move') {
-        //이동
-
         movePath(path.parent, event);
         movePath(origin, event);
       }
@@ -920,6 +1245,42 @@ const Canvas = () => {
         }
       } else if (path) {
         movePath(path, event);
+      }
+    } else if (path.parent.data.type === 'crop') {
+      if (path.data.type === 'cropField') {
+        movePath(path.parent, event);
+      } else {
+        for (let element of direction) {
+          if (element === path.data.type) {
+            let from;
+            let to;
+            if (element === 'up') {
+              from = new Point(origin.bounds.topLeft.x, event.point.y);
+              to = new Point(origin.bounds.bottomRight);
+            } else if (element === 'bottom') {
+              from = new Point(origin.bounds.topLeft);
+              to = new Point(origin.bounds.bottomRight.x, event.point.y);
+            } else if (element === 'left') {
+              from = new Point(event.point.x, origin.bounds.topLeft.y);
+              to = new Point(origin.bounds.bottomRight);
+            } else if (element === 'right') {
+              from = new Point(event.point.x, origin.bounds.topRight.y);
+              to = new Point(origin.bounds.bottomLeft);
+            }
+
+            defaultPaper.project.layers[0].children.forEach((item: paper.Item) => {
+              if (item.data.type === 'crop') {
+                item.remove();
+                origin.remove();
+              }
+            });
+            if (from && to) {
+              makeCropField(from, to);
+              makeCropButton();
+              makeCropEditField();
+            }
+          }
+        }
       }
     }
   };
@@ -1050,11 +1411,49 @@ const Canvas = () => {
     Tools.moveTool.activate();
   };
 
+  Tools.cropTool.onMouseDown = (event: paper.ToolEvent) => {
+    removeForwardHistory();
+    makeCropField(event.point, event.point);
+
+    origin = shape.clone();
+  };
+  Tools.cropTool.onMouseMove = (event: paper.ToolEvent) => {
+    if (event.item) {
+      Tools.moveTool.activate();
+    }
+  };
+  Tools.cropTool.onMouseDrag = (event: paper.ToolEvent) => {
+    resizeCircle(event);
+    makeCropButton();
+  };
+  Tools.cropTool.onMouseUp = (event: paper.ToolEvent) => {
+    makeCropEditField();
+  };
+
+  const readjustLayout = (template: any) => {
+    for (let i = 0; i < surface; i++) {
+      defaultPaper.projects[i].view.viewSize = new Size(width * template.size[0], height * template.size[1]);
+      defaultPaper.projects[i].view.scale(template.scale[0], template.scale[1]);
+      defaultPaper.projects[i].layers.forEach((layer: paper.Item) => {
+        if (layer.name === 'sketch') {
+          layer.position = defaultPaper.projects[i].view.center;
+        }
+      });
+    }
+  };
   useEffect(() => {
-    initCanvas();
-  }, []);
+    const projectsLength = defaultPaper.projects.length;
+    for (let i = 0; i < projectsLength; i++) {
+      defaultPaper.projects[0].remove();
+    }
+    for (let i = 1; i <= surface; i++) {
+      initCanvas(i, canvass[i - 1].canvas_Ref);
+    }
+    readjustLayout(layeroutTemplete[Math.floor(surface / 2)]);
+  }, [surface]);
 
   useEffect(() => {
+    // if(open) return;
     if (!open) {
       if (pointText) {
         if (isEditText) {
@@ -1134,6 +1533,46 @@ const Canvas = () => {
     defaultPaper.project.layers.splice(currLayerIndex + 1, 0, defaultPaper.project.layers[1]);
     defaultPaper.project.layers[1].remove();
     defaultPaper.project.layers[0].visible = true;
+  };
+
+  const settingLayer = () => {
+    if (currentImage) {
+      defaultPaper.project.clear();
+
+      let image = new Raster({
+        position: new Point(width / 2, height / 2),
+        source: currentImage,
+        data: { type: 'background' },
+        selected: false,
+        locked: true,
+      });
+      backgroundImage.width = image.bounds.width;
+      backgroundImage.height = image.bounds.height;
+      image.onLoad = () => {
+        // image.applyMatrix = false;
+        makeNewLayer();
+      };
+    } else {
+      const number = new PointText({
+        point: new Point(width / 2, height / 2),
+        fontSize: 24,
+        fontWeight: 'bold',
+        justification: 'center',
+        fillColor: 'green',
+      });
+      number.content = '1';
+
+      number.fitBounds(new Rectangle({ point: new Point(width * 0.25, height * 0.25), size: new Size(width * 0.5, height * 0.5) }));
+      const message = new PointText({
+        point: new Point(width / 2, height / 2),
+        fontSize: 24,
+        justification: 'center',
+        fillColor: 'green',
+      });
+      message.content = '*Select image';
+      message.fitBounds(new Rectangle({ point: new Point(width * 0.35, height * 0.7), size: new Size(width * 0.3, height * 0.15) }));
+      setCurrentImage('');
+    }
   };
 
   useEffect(() => {
@@ -1227,9 +1666,38 @@ const Canvas = () => {
       Tools.moveTool.activate();
     }
   }, [isImplantInput]);
+  useEffect(() => {
+    let image = new Raster({
+      position: new Point(canvasWidth / 2, canvasHeight / 2),
+      source: currentImage,
+      data: { type: 'background' },
+      selected: false,
+      locked: true,
+    });
+    backgroundImage.width = image.bounds.width;
+    backgroundImage.height = image.bounds.height;
+  }, [currentImage]);
   return (
-    <div style={{ cursor: moveCursor ? cursor : 'default', marginTop: '50px' }}>
-      <canvas ref={canvasRef} id="canvas" style={{ border: 'solid 1px black', width: '1200px', height: '750px' }} />
+    <div style={{ cursor: moveCursor ? cursor : 'default', marginTop: '50px', width: '1000px' }}>
+      <div className="canvas-container" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%' }}>
+        {new Array(surface).fill('').map((el, i) => {
+          return (
+            <canvas
+              key={i}
+              ref={canvass[i].canvas_Ref}
+              id={canvass[i].id}
+              style={{
+                width: width,
+                height: height,
+                backgroundColor: 'black',
+              }}
+              onMouseDown={() => {
+                defaultPaper.projects[i].activate();
+              }}
+            />
+          );
+        })}
+      </div>
       <Modal open={open} setOpen={setOpen} x={x} y={y} text={text} setText={setText} />
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
       {implantOpen && (
@@ -1241,6 +1709,16 @@ const Canvas = () => {
         />
       )}
       <div>
+        <button
+          onClick={() =>
+            setCurrentImage(
+              // 'https://image.fmkorea.com/files/attach/new/20201211/486616/611158495/3253510246/0f09647d2e7e92217d678aedede7742c.jpg'
+              'https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E'
+            )
+          }
+        >
+          image
+        </button>
         <span>도형 히스토리:</span>
         <button onClick={backFigureHistory}>back</button>
         <button onClick={forwardFigureHistory}>forward</button>
@@ -1307,6 +1785,60 @@ const Canvas = () => {
           </ul>
         </nav>
       </div>
+
+      <div>
+        <span>도형그리기:</span>
+        <button
+          onClick={() => {
+            findShapeTools('isPen');
+            Tools.penTool.activate();
+          }}
+        >
+          Pen!
+        </button>
+        <button
+          onClick={() => {
+            findShapeTools('isLine');
+            Tools.lineTool.activate();
+          }}
+        >
+          Draw!
+        </button>
+        <button
+          onClick={() => {
+            findShapeTools('isStraight');
+            Tools.straightTool.activate();
+          }}
+        >
+          Straight!
+        </button>
+        <button
+          onClick={() => {
+            findShapeTools('isCircle');
+            Tools.circleTool.activate();
+          }}
+        >
+          Circle!
+        </button>
+        <button
+          onClick={() => {
+            findShapeTools('isRectangle');
+            Tools.rectangleTool.activate();
+          }}
+        >
+          Rectangle!
+        </button>
+        <button
+          onClick={() => {
+            findShapeTools('isText');
+            Tools.textTool.activate();
+          }}
+        >
+          Text!
+        </button>
+        <button onClick={() => Tools.moveTool.activate()}>Move!</button>
+      </div>
+
       <div>
         <span>이미지삽입:</span>
         <button onClick={() => setIsToothImage(!isToothImage)}>치아 이미지</button>
@@ -1396,56 +1928,22 @@ const Canvas = () => {
         </div>
       </div>
       <div>
-        <span>도형그리기:</span>
+        <span>자르기: </span>
         <button
           onClick={() => {
-            findShapeTools('isPen');
-            Tools.penTool.activate();
+            findShapeTools('isCrop');
+            Tools.cropTool.activate();
           }}
         >
-          Pen!
+          자르기
         </button>
-        <button
-          onClick={() => {
-            findShapeTools('isLine');
-            Tools.lineTool.activate();
-          }}
-        >
-          Draw!
-        </button>
-        <button
-          onClick={() => {
-            findShapeTools('isStraight');
-            Tools.straightTool.activate();
-          }}
-        >
-          Straight!
-        </button>
-        <button
-          onClick={() => {
-            findShapeTools('isCircle');
-            Tools.circleTool.activate();
-          }}
-        >
-          Circle!
-        </button>
-        <button
-          onClick={() => {
-            findShapeTools('isRectangle');
-            Tools.rectangleTool.activate();
-          }}
-        >
-          Rectangle!
-        </button>
-        <button
-          onClick={() => {
-            findShapeTools('isText');
-            Tools.textTool.activate();
-          }}
-        >
-          Text!
-        </button>
-        <button onClick={() => Tools.moveTool.activate()}>Move!</button>
+      </div>
+      <div>
+        <span>Split: </span>
+        <button onClick={() => setSurface(1)}>1 Surface</button>
+        <button onClick={() => setSurface(2)}>2 Surface</button>
+        <button onClick={() => setSurface(4)}>4 Surface</button>
+        <button onClick={() => setSurface(6)}>6 Surface</button>
       </div>
     </div>
   );
