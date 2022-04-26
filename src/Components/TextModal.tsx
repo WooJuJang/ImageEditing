@@ -1,5 +1,12 @@
 import { isAbsolute } from 'path';
 import React, { useEffect, useRef } from 'react';
+
+interface ICanvasRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 interface IProp {
   open: boolean;
   setOpen: (value: boolean) => void;
@@ -7,9 +14,11 @@ interface IProp {
   y: number;
   text: string;
   setText: (value: string) => void;
+  canvas: ICanvasRect;
+  canvasIndex: number;
 }
 
-const Modal = ({ open, setOpen, x, y, text, setText }: IProp) => {
+const TextModal = ({ open, setOpen, x, y, text, setText, canvas, canvasIndex }: IProp) => {
   //ref가 없는 곳에 클릭 시 창 닫히는 함수
   const ref = useRef<HTMLDivElement>(null);
 
@@ -18,6 +27,11 @@ const Modal = ({ open, setOpen, x, y, text, setText }: IProp) => {
   };
   const onClose = (e: any) => {
     if (ref.current === e.target) {
+      setOpen(false);
+    }
+  };
+  const enterKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
       setOpen(false);
     }
   };
@@ -34,10 +48,10 @@ const Modal = ({ open, setOpen, x, y, text, setText }: IProp) => {
             justifyContent: 'center',
             alignItems: 'center',
             position: 'absolute',
-            top: 51,
-            left: 1,
-            width: '800px',
-            height: '600px',
+            top: canvas.y,
+            left: canvas.x,
+            width: canvas.width,
+            height: canvas.height,
           }}
         >
           <div
@@ -54,7 +68,7 @@ const Modal = ({ open, setOpen, x, y, text, setText }: IProp) => {
               flexDirection: 'column',
             }}
           >
-            <input style={{ width: '150px', height: '30px' }} value={text} onChange={onChangeInput} />
+            <input style={{ width: '150px', height: '30px' }} value={text} onChange={onChangeInput} onKeyPress={enterKey} />
           </div>
         </div>
       ) : null}
@@ -62,4 +76,4 @@ const Modal = ({ open, setOpen, x, y, text, setText }: IProp) => {
   );
 };
 
-export default Modal;
+export default TextModal;

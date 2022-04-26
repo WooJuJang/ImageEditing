@@ -1,9 +1,9 @@
-import Canvas from './Components/Canvas';
+import EditCanvas from './Components/EditCanvas';
 import Test from './Components/Test';
 function App() {
   return (
     <div className="App">
-      <Canvas />
+      <EditCanvas />
     </div>
   );
 }
