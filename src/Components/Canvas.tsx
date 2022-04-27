@@ -575,6 +575,7 @@ type propsType = {
   scaleY: number;
   currColor: string;
   size: number;
+  currToothImageUrl: string;
   setCurrentCanvasIndex: (value: number) => void;
 };
 export type refType = {
@@ -823,12 +824,71 @@ const createEditField = (FigureType: string) => {
     group.insertAbove(pointText);
   }
 };
+
+const createRasterEditField = (FigureType: string, currToothImageUrl: string) => {
+  if (FigureType === 'Raster') {
+    const raster = new Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: FigureType }, closed: true });
+
+    const topLeft = shape.bounds.topLeft;
+    const bottomLeft = shape.bounds.bottomLeft;
+    const width = shape.bounds.width / 6;
+    raster.data = { RasterId: raster.id };
+    const group = new Group({ data: { type: FigureType, RasterId: raster.data.RasterId } });
+
+    const pth: paper.Path = new Path.Rectangle({
+      from: topLeft,
+      to: new Point(bottomLeft.x + width, bottomLeft.y),
+      fillColor: 'red',
+      data: { option: 'resize' },
+    });
+    const pth2: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width, topLeft.y),
+      to: new Point(bottomLeft.x + width * 2, bottomLeft.y),
+      fillColor: 'blue',
+      data: { option: 'rotate' },
+    });
+    const pth3: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 2, topLeft.y),
+      to: new Point(bottomLeft.x + width * 4, bottomLeft.y),
+      fillColor: 'yellow',
+      data: { option: 'move' },
+    });
+    const pth4: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 4, topLeft.y),
+      to: new Point(bottomLeft.x + width * 5, bottomLeft.y),
+      fillColor: 'blue',
+      data: { option: 'rotate' },
+    });
+    const pth5: paper.Path = new Path.Rectangle({
+      from: new Point(topLeft.x + width * 5, topLeft.y),
+      to: new Point(bottomLeft.x + width * 6, bottomLeft.y),
+      fillColor: 'red',
+      data: { option: 'resize' },
+    });
+
+    group.addChild(pth);
+    group.addChild(pth2);
+    group.addChild(pth3);
+    group.addChild(pth4);
+    group.addChild(pth5);
+    group.opacity = 0;
+    group.insertAbove(raster);
+  }
+};
 let isEditText = false;
+
+//두 포인트 사이에 거리 구하기 함수
+const getDistance = (item: paper.Path) => {
+  return item.segments[0].point.getDistance(item.segments[1].point).toFixed(2);
+};
+
 const Canvas = forwardRef<refType, propsType>((props, ref) => {
-  const { canvasIndex, action, width, height, scaleX, scaleY, surface, currColor, size, setCurrentCanvasIndex } = props;
+  const { canvasIndex, action, width, height, scaleX, scaleY, surface, currColor, currToothImageUrl, size, setCurrentCanvasIndex } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paper = useMemo(() => new Paper.PaperScope(), []);
-
+  useEffect(() => {
+    console.log(currToothImageUrl);
+  }, [currToothImageUrl]);
   type ToolType = { [k in formatTool]: paper.Tool };
   const Tools: ToolType = useMemo(
     () => ({
@@ -1143,9 +1203,15 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           }
         });
       }
-    } else {
+    } else if (hitResult.item.data.type === 'ruler') {
+      hitResult.item.parent.children.forEach((child: paper.Item) => {
+        if (child.className === 'PointText') {
+          pointText = child as paper.PointText;
+        }
+      });
+    } else if (hitResult.item.parent.data.type === 'Raster') {
       layers?.sketch.children.forEach((child: paper.Item) => {
-        if (item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
+        if (item.parent.data.RasterId === child.data.RasterId && child.className === 'Raster') {
           origin = child;
           item.parent.data.bounds = item.parent.bounds.clone();
           item.parent.data.scaleBase = event.point.subtract(item.parent.bounds.center);
@@ -1165,6 +1231,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         event.item.selected = false;
         option = hitResult.item.data.option;
         setCursor(cursorList[hitResult.item.data.option]);
+      } else if (hitResult.item.parent.data.type === 'Raster') {
+        event.item.selected = false;
+        option = hitResult.item.data.option;
+        setCursor(cursorList[hitResult.item.data.option]);
       } else {
         setCursor('default');
         option = '';
@@ -1178,7 +1248,18 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   Tools.moveTool.onMouseDrag = (event: paper.ToolEvent) => {
     if (!item.data) return;
     if (item.data.handleSize === 0) {
-      moveItem(item, event);
+      if (item.data.type === 'ruler') {
+        if (segment) {
+          moveSegment(segment, event);
+          pointText.point = item.bounds.center;
+          pointText.content = getDistance(item as paper.Path);
+        } else {
+          pointText.point = item.bounds.center;
+          moveItem(item.parent, event);
+        }
+      } else {
+        moveItem(item, event);
+      }
     } else if (item.data.handleSize === 10) {
       if (segment) {
         if (item.data.type === 'rectangle') {
@@ -1222,7 +1303,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
   Tools.partClearTool.onMouseDown = (event: paper.ToolEvent) => {
     paper.settings.handleSize = 0;
-
     shape = new Shape.Rectangle({
       from: new Point(event.point),
       to: new Point(event.point),
@@ -1251,6 +1331,86 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       }
     });
     makeNewLayer();
+  };
+
+  Tools.rulerTool.onMouseDown = (event: paper.ToolEvent) => {
+    path = new Path.Line({
+      from: new Point(event.point),
+      to: new Point(event.point),
+      strokeColor: 'green',
+      strokeWidth: 4,
+      strokeCap: 'round',
+      strokeJoin: 'round',
+      data: { type: 'ruler' },
+    });
+
+    path.dashArray = [8, 8];
+  };
+  Tools.rulerTool.onMouseMove = (event: paper.ToolEvent) => {
+    if (event.item) {
+      Tools.moveTool.activate();
+    }
+  };
+  Tools.rulerTool.onMouseDrag = (event: paper.ToolEvent) => {
+    path.segments[1].point = event.point;
+  };
+  Tools.rulerTool.onMouseUp = (event: paper.ToolEvent) => {
+    path.data.handleSize = 0;
+    group = new Group();
+    pointText = new PointText({
+      point: path.bounds.center,
+      content: getDistance(path),
+      fillColor: 'pink',
+      strokeColor: 'pink',
+      justification: 'center',
+      fontSize: 20,
+      strokeWidth: 1,
+      data: { handleSize: 0 },
+    });
+    path.selected = false;
+    if (Number(getDistance(path)) < 5) {
+      path.remove();
+      pointText.remove();
+    } else {
+      group.addChild(path);
+      group.addChild(pointText);
+
+      makeNewLayer();
+    }
+
+    Tools.moveTool.activate();
+  };
+
+  Tools.toothImageTool.onMouseDown = (event: paper.ToolEvent) => {
+    shape = new Shape.Rectangle({
+      from: new Point(event.point),
+      to: new Point(event.point),
+      fillColor: fillColor,
+      strokeColor: currColor,
+    });
+
+    origin = shape.clone();
+  };
+  Tools.toothImageTool.onMouseMove = (event: paper.ToolEvent) => {
+    if (event.item) {
+      Tools.moveTool.activate();
+    }
+  };
+  Tools.toothImageTool.onMouseDrag = (event: paper.ToolEvent) => {
+    makeShape(event, origin as paper.Shape);
+  };
+  Tools.toothImageTool.onMouseUp = (event: paper.ToolEvent) => {
+    if (shape.bounds.width < 5 && shape.bounds.height < 5) {
+      shape.remove();
+      origin.remove();
+    } else {
+      createRasterEditField('Raster', currToothImageUrl);
+      shape.remove();
+      origin.remove();
+
+      makeNewLayer();
+    }
+    Tools.moveTool.activate();
   };
 
   const setUnderlay = () => {

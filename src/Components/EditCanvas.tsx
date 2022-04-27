@@ -97,7 +97,7 @@ const layeroutTemplete = [
     scale: [0.3333, 0.5],
   },
 ];
-/*
+
 const toothImageUrls = {
   ceramic: 'https://cvboard.develop.vsmart00.com/contents/crown-ceramic.svg',
   gold: 'https://cvboard.develop.vsmart00.com/contents/crown-gold.svg',
@@ -105,19 +105,8 @@ const toothImageUrls = {
   pfm: 'https://cvboard.develop.vsmart00.com/contents/crown-pfm.svg',
   zirconia: 'https://cvboard.develop.vsmart00.com/contents/crown-zirconia.svg',
 };
-let currToothImageUrl = 'https://cvboard.develop.vsmart00.com/contents/crown-ceramic.svg';
-let shapeTools: IShapeTools = {
-  isPen: false,
-  isLine: false,
-  isStraight: false,
-  isCircle: false,
-  isRectangle: false,
-  isText: false,
-  isPartClear: false,
-  isToothImage: false,
-  isRuler: false,
-  isCrop: false,
-};
+/*
+
 
 const findShapeTools = (figure: string) => {
   for (const element in shapeTools) {
@@ -554,6 +543,7 @@ const EditCanvas = () => {
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
   const [surface, setSurface] = useState(1);
+  const [currToothImageUrl, setCurrToothImageUrl] = useState(toothImageUrls.ceramic);
   const [historyGroup, setHistoryGroup] = useState<paper.Path[]>([]);
 
   const [implantInput, setImplantInput] = useState<IImplantInput>({
@@ -1639,25 +1629,6 @@ x
   */
   const canvasRefs = useRef<any[]>([]);
 
-  //   useEffect(() => {
-
-  //     // for (let i = 0; i < 6; i++) {
-  //     //     canvasRefs.current[i]=
-  //     //   canvasRefs[i] = useRef<refType[]>(null);
-  //     // }
-  //   }, []);
-  const [index, setIndex] = useState(0);
-  // const defaultPaper = new Paper.PaperScope();
-
-  // let moveTool = new defaultPaper.Tool();
-  // moveTool.onMouseDown = (e: paper.ToolEvent) => {
-  //   defaultPaper.activate();
-  //   console.log("down");
-  // };
-  // moveTool.onMouseUp = (e: paper.ToolEvent) => {
-  //   defaultPaper.activate();
-  //   console.log("up");
-  // };
   const width = 1000;
   const height = 750;
 
@@ -1693,6 +1664,38 @@ x
           </ul>
         </nav>
       </div>
+
+      <div>
+        <span>이미지삽입:</span>
+        <button onClick={() => setIsToothImage(!isToothImage)}>치아 이미지</button>
+        {/* <button
+          onClick={() => {
+            setImplantOpen(true);
+            setIsImplantInput(false);
+            defaultPaper.settings.insertItems = false;
+          }}
+        >
+          임플란트식립
+        </button> */}
+        <button onClick={() => setAction('rulerTool')}>Ruler</button>
+        <div style={{ display: isToothImage ? 'flex' : 'none', width: '180px', flexWrap: 'wrap' }}>
+          {Object.entries(toothImageUrls).map(([key, value]) => (
+            <div
+              key={key}
+              style={{
+                width: '85px',
+                height: '85px',
+                backgroundImage: 'url("' + value + '")',
+                backgroundRepeat: 'no-repeat',
+              }}
+              onClick={() => {
+                setCurrToothImageUrl(value);
+                setAction('toothImageTool');
+              }}
+            />
+          ))}
+        </div>
+      </div>
       <div>
         <span>draw Tool: </span>
 
@@ -1721,6 +1724,7 @@ x
         </button>
         <button
           onClick={() => {
+            setAction('partClearTool');
             canvasRefs.current[currentCanvasIndex].erase();
           }}
         >
@@ -1764,6 +1768,7 @@ x
               scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
               currColor={currColor}
               size={size}
+              currToothImageUrl={currToothImageUrl}
               // image={currentImage}
               setCurrentCanvasIndex={setCurrentCanvasIndex}
             />
