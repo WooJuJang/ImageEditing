@@ -1679,46 +1679,17 @@ x
         <button onClick={() => setIsSizeDropdown(!isSizeDropdown)}>{size}pt</button>
         <nav className="size-dropdown" style={{ display: isSizeDropdown ? 'block' : 'none' }}>
           <ul>
-            <li
-              onClick={() => {
-                setSize(1);
-                setIsSizeDropdown(false);
-              }}
-            >
-              1pt
-            </li>
-            <li
-              onClick={() => {
-                setSize(2);
-                setIsSizeDropdown(false);
-              }}
-            >
-              2pt
-            </li>
-            <li
-              onClick={() => {
-                setSize(4);
-                setIsSizeDropdown(false);
-              }}
-            >
-              4pt
-            </li>
-            <li
-              onClick={() => {
-                setSize(8);
-                setIsSizeDropdown(false);
-              }}
-            >
-              8pt
-            </li>
-            <li
-              onClick={() => {
-                setSize(16);
-                setIsSizeDropdown(false);
-              }}
-            >
-              16pt
-            </li>
+            {[1, 2, 4, 8, 16].map((number) => (
+              <li
+                key={number}
+                onClick={() => {
+                  setSize(number);
+                  setIsSizeDropdown(false);
+                }}
+              >
+                {number}pt
+              </li>
+            ))}
           </ul>
         </nav>
       </div>
@@ -1754,6 +1725,13 @@ x
           }}
         >
           erase
+        </button>
+        <button
+          onClick={() => {
+            canvasRefs.current[currentCanvasIndex].clear();
+          }}
+        >
+          clear
         </button>
       </div>
       <button onClick={() => canvasRefs.current[0].settingPhoto('/testImage/test0.jpeg')}>image0</button>

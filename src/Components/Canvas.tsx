@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle, useState, useCallback, useRef, useEffect, useMemo, ReactNode } from 'react';
+import React, { forwardRef, useImperativeHandle, useState, useCallback, useRef, useEffect, useMemo, ReactNode, Children } from 'react';
 import Paper, { PointText, Point, Path, Raster, Size, Shape, Group, Rectangle, Tool } from 'paper';
 import { ICursorList } from '../PaperTypes';
 import TextModal from './TextModal';
@@ -595,6 +595,8 @@ let shape: paper.Shape;
 let origin: paper.Shape | paper.Path | paper.Item;
 let pointText: paper.PointText;
 let option: string;
+let pointTextId: number;
+let currText: string;
 const hitOptions = {
   segments: true,
   stroke: true,
@@ -821,7 +823,7 @@ const createEditField = (FigureType: string) => {
     group.insertAbove(pointText);
   }
 };
-
+let isEditText = false;
 const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const { canvasIndex, action, width, height, scaleX, scaleY, surface, currColor, size, setCurrentCanvasIndex } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -856,7 +858,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const [isTextBoxOpen, setIsTextBoxOpen] = useState(false);
   const [canvasRect, setCanvasRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [cursor, setCursor] = useState('default');
-  const [isEditText, setIsEditText] = useState(false);
+  // const [isEditText, setIsEditText] = useState(false);
+
   const [test, setTest] = useState<paper.PointText>();
   const findLayer = (name: string): paper.Layer => {
     let result!: paper.Layer;
@@ -1047,8 +1050,17 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       to: new Point(event.point),
       fillColor: fillColor,
       strokeColor: currColor,
+      visible: true,
+      data: { type: 'TextBackground' },
     });
-
+    pointText = new PointText({
+      // content: text,
+      fillColor: currColor,
+      strokeScaling: true,
+    });
+    pointText.data = { type: 'text', PointTextId: pointText.id };
+    pointText.insertAbove(shape);
+    pointTextId = pointText.id;
     origin = shape.clone();
   };
   Tools.textTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -1082,16 +1094,9 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
 
     if (shape.bounds.width > 5 && shape.bounds.height > 5) {
-      const nativeEvent: MouseEvent = (event as any).event;
+      // const nativeEvent: MouseEvent = (event as any).event;
       setTextBox({ x: event.point.x, y: event.point.y });
       setIsTextBoxOpen(true);
-      pointText = new PointText({
-        fillColor: currColor,
-        strokeScaling: true,
-      });
-      pointText.data = { PointTextId: pointText.id };
-      pointText.insertAbove(shape);
-      createEditField('PointText');
     } else {
       shape.remove();
       origin.remove();
@@ -1105,18 +1110,15 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
     item = hitResult.item;
     segment = hitResult.segment;
-    console.log(layers?.sketch);
     if (item.parent.data.type === 'PointText') {
       if (option === 'edit') {
-        console.log('edit', layers?.sketch);
+        isEditText = true;
         layers?.sketch.children.forEach((child: paper.Item) => {
           if (item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
             origin = child;
-
-            pointText = child as paper.PointText;
-
-            // currText = pointText.content;
-
+            pointTextId = child.data.PointTextId;
+            setText((child as paper.PointText).content);
+            currText = pointText.content;
             item.parent.data.bounds = item.parent.bounds.clone();
             item.parent.data.scaleBase = event.point.subtract(item.parent.bounds.center);
           }
@@ -1132,8 +1134,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
         setTextBox({ x: event.point.x, y: event.point.y });
         setIsTextBoxOpen(true);
-
-        setIsEditText(true);
       } else {
         layers?.sketch.children.forEach((child: paper.Item) => {
           if (item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
@@ -1143,6 +1143,14 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           }
         });
       }
+    } else {
+      layers?.sketch.children.forEach((child: paper.Item) => {
+        if (item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
+          origin = child;
+          item.parent.data.bounds = item.parent.bounds.clone();
+          item.parent.data.scaleBase = event.point.subtract(item.parent.bounds.center);
+        }
+      });
     }
   };
 
@@ -1156,10 +1164,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         // paper.settings.hitTolerance = 0;
         event.item.selected = false;
         option = hitResult.item.data.option;
-        console.log(option);
         setCursor(cursorList[hitResult.item.data.option]);
       } else {
         setCursor('default');
+        option = '';
       }
     } else {
       setCursor('default');
@@ -1173,7 +1181,12 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       moveItem(item, event);
     } else if (item.data.handleSize === 10) {
       if (segment) {
-        moveSegment(segment, event);
+        if (item.data.type === 'rectangle') {
+          path = item as paper.Path;
+          resizePathRectangle(event);
+        } else {
+          moveSegment(segment, event);
+        }
       } else {
         moveItem(item, event);
       }
@@ -1204,6 +1217,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
   };
   Tools.moveTool.onMouseUp = (event: paper.ToolEvent) => {
+    if (option === 'edit') return;
     makeNewLayer();
   };
   Tools.partClearTool.onMouseDown = (event: paper.ToolEvent) => {
@@ -1239,41 +1253,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     makeNewLayer();
   };
 
-  useEffect(() => {
-    if (!pointText || !shape) return;
-    if (isEditText) {
-      layers?.sketch.children.forEach((child: paper.Item) => {
-        if (child.data.PointTextId === pointText.data.PointTextId) {
-          (child as paper.PointText).content = text;
-          child.bounds.topLeft = shape.bounds.topLeft;
-          child.bounds.width = shape.bounds.width;
-          child.bounds.height = shape.bounds.height;
-        }
-      });
-      if (!isTextBoxOpen) {
-        layers?.sketch.children.forEach((child: paper.Item) => {
-          if (child.data.type === 'TextBackground') {
-            child.remove();
-          }
-        });
-      }
-    } else {
-      if (isTextBoxOpen) {
-        pointText.content = text;
-        pointText.bounds.topLeft = shape.bounds.topLeft;
-        pointText.bounds.width = shape.bounds.width;
-        pointText.bounds.height = shape.bounds.height;
-      } else {
-        shape.remove();
-        origin.remove();
-        if (text) {
-          makeNewLayer();
-        }
-
-        Tools.moveTool.activate();
-      }
-    }
-  }, [isTextBoxOpen, isEditText, text, test]);
   const setUnderlay = () => {
     if (!layers) return;
     paper.activate();
@@ -1380,15 +1359,42 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       sketch: sketch,
     });
   }, []);
-
   useEffect(() => {
-    if (!action) return;
-    Tools[action].activate();
-  }, [action]);
+    layers?.sketch.children.forEach((child: paper.Item) => {
+      if (child.data.PointTextId === pointTextId && child.data.type === 'text') {
+        (child as paper.PointText).content = text;
+        child.strokeScaling = true;
+        child.bounds.topLeft = shape.bounds.topLeft;
+        child.bounds.width = shape.bounds.width;
+        child.bounds.height = shape.bounds.height;
+      }
+    });
+  }, [text]);
+
   useEffect(() => {
     paper.project.activeLayer.removeChildren();
     paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex - 1]);
   }, [sketchIndex]);
+  useEffect(() => {
+    //얘는 단일로 돌아야 함
+    if (isTextBoxOpen) return;
+    if (shape && origin) {
+      layers?.sketch.children.forEach((child: paper.Item) => {
+        if (child.data.type === 'TextBackground') {
+          child.remove();
+        }
+      });
+
+      if (text && text !== currText) {
+        if (!isEditText) {
+          createEditField('PointText');
+        }
+
+        makeNewLayer();
+      }
+    }
+  }, [isTextBoxOpen]);
+
   useEffect(() => {
     if (!layers) return;
 
@@ -1399,7 +1405,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       }
     } else {
       setUnderlay();
-      layers.sketch.visible = false;
+      // layers.sketch.visible = false;
     }
     fitLayerInView();
   }, [layers, currentImage, surface]);
@@ -1409,22 +1415,22 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       settingBackground(url);
       setCurrentImage(url);
     },
+
     undoHistory() {
       if (!undoHistoryArr || sketchIndex <= 0) return;
       setSketchIndex(sketchIndex - 1);
-      // paper.project.activeLayer.removeChildren();
-      // paper.project.activeLayer.importJSON(undoHistoryArr.pop() as string);
     },
     redoHistory() {
       if (!undoHistoryArr || sketchIndex >= undoHistoryArr.length) return;
 
       setSketchIndex(sketchIndex + 1);
-      // const redoChild = undoHistoryArr.pop() as paper.Item;
-
-      // paper.project.activeLayer.addChild(redoChild);
     },
     erase() {
       Tools.partClearTool.activate();
+    },
+    clear() {
+      layers?.sketch.removeChildren();
+      makeNewLayer();
     },
   }));
 
@@ -1451,6 +1457,9 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         }}
         onMouseDown={() => {
           setCurrentCanvasIndex(canvasIndex);
+        }}
+        onMouseEnter={() => {
+          Tools[action].activate();
         }}
       />
     </div>
