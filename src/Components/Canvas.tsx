@@ -581,9 +581,7 @@ const sketchResize = (itemBounds: paper.Rectangle, layers: ILayers, subRaster: p
   layers.sketch.children.forEach((child: paper.Item) => {
     if (child.data.type === 'history') {
       child.translate(new Point(translateX, translateY));
-      // child.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
-      child.scale(2);
-      child.selected = false;
+      child.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
     }
   });
   currentScale[scaleIndex] = {
@@ -777,15 +775,15 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       crownImage.importSVG(implantInput.crown, (item: paper.Item) => {
         crownImage.position = new Point(paper.view.center.x, paper.view.center.y - 85);
 
-        if (item.className === 'Group') {
-          moveArea = new Shape.Rectangle({
-            point: item.children[1].firstChild.bounds.topLeft,
-            size: new Size(item.children[1].firstChild.bounds.width as number, item.children[1].firstChild.bounds.height as number),
-            fillColor: 'red',
-            opacity: 0,
-            data: { type: 'crownRotateArea', option: 'rotate' },
-          });
-        }
+        moveArea = new Shape.Rectangle({
+          point: item.children[1].firstChild.bounds.topLeft,
+          size: new Size(item.children[1].firstChild.bounds.width as number, item.children[1].firstChild.bounds.height as number),
+          fillColor: 'red',
+          opacity: 0,
+          data: { type: 'crownRotateArea', option: 'rotate' },
+        });
+
+        crownImage.applyMatrix = false;
         group.addChild(crownImage);
         group.addChild(moveArea);
       });
@@ -1024,7 +1022,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       data: { type: 'TextBackground' },
     });
     pointText = new PointText({
-      // content: text,
       fillColor: currColor,
       strokeScaling: true,
     });
@@ -1080,7 +1077,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
     item = hitResult.item;
     segment = hitResult.segment;
-
+    console.log(item);
     if (item.parent.data.type === 'PointText') {
       if (option === 'edit') {
         isEditText = true;
@@ -1292,6 +1289,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     shape = new Shape.Rectangle({
       from: new Point(event.point),
       to: new Point(event.point),
+      fillColor: fillColor,
       strokeColor: currColor,
     });
 
@@ -1309,15 +1307,22 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     const bounds = shape.bounds;
     shape.remove();
     origin.remove();
-
     findLayer(paper, 'sketch').children.forEach((child: paper.Item) => {
-      if (child.intersects(new Shape.Rectangle(bounds))) {
-        child.selected = false;
-        child.visible = false;
+      if (child.className === 'Group' && child.data.type === 'history') {
+        child.children.forEach((child: paper.Item) => {
+          if (child.intersects(new Shape.Rectangle(bounds))) {
+            child.selected = false;
+            child.visible = false;
+          }
+          if (child.isInside(new Rectangle(bounds))) {
+            child.selected = false;
+            child.visible = false;
+          }
+        });
       }
     });
-    if (!layers) return;
 
+    if (!layers) return;
     makeNewLayer(layers);
   };
 
