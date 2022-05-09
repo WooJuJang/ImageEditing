@@ -2,16 +2,18 @@ import React, { forwardRef, useImperativeHandle, useState, useCallback, useRef, 
 import Paper, { PointText, Point, Path, Raster, Size, Shape, Group, Rectangle, Tool } from 'paper';
 import { ICursorList } from '../PaperTypes';
 import TextModal from './TextModal';
-import { IImplantInput } from './EditCanvas';
-import ColorModal from './ColorModal';
-import InsertImplants from './InsertImplants';
-import { Layer, Matrix, PaperScope } from 'paper/dist/paper-core';
+import { IImplantInput, IFilter } from './EditCanvas';
+
 interface IEditField {
   group?: paper.Group;
   pointText?: paper.PointText;
 }
-const initCanvasWidth = 1000;
-const initCanvasHeight = 750;
+interface IInitCanvasSize {
+  width: number;
+  height: number;
+}
+// const initCanvasWidth = 1000;
+// const initCanvasHeight = 750;
 export interface ICanvasSize {
   width: number;
   height: number;
@@ -41,6 +43,7 @@ export const ToolKey = [
   'toothImageTool',
   'rulerTool',
   'cropTool',
+  'layerMoveTool',
 ] as const;
 export type formatTool = typeof ToolKey[number];
 
@@ -57,6 +60,8 @@ type propsType = {
   size: number;
   implantOpen: boolean;
   currToothImageUrl: string;
+  filter: IFilter;
+  initCanvasSize: IInitCanvasSize;
   // implantInput: IImplantInput;
   // isImplantInput: boolean;
   setCurrentCanvasIndex: (value: number) => void;
@@ -85,12 +90,16 @@ let currText: string;
 let cropCircleButton: paper.Shape;
 let isMakeCropField = false;
 let isEditText = false;
+let hitResult: paper.HitResult;
+// let isLayerMove = false;
 
 let crownImage: paper.Group;
 let implantImage: paper.Group;
 let moveArea: paper.Shape;
 let rotateArea: paper.Shape;
 let unitePath: paper.PathItem;
+let ctx: CanvasRenderingContext2D | null;
+let initScaleX = 1;
 
 const hitOptions = {
   segments: true,
@@ -148,52 +157,6 @@ const findLayer = (paper: paper.PaperScope, name: string): paper.Layer => {
 };
 const removeHistory = (sketchIndex: number) => {
   undoHistoryArr.splice(sketchIndex + 1);
-};
-
-const setUnderlay = (paper: paper.PaperScope, layers: ILayers, canvasIndex: number) => {
-  if (!layers) return;
-  paper.activate();
-  paper.project.view.matrix.reset();
-  let beforeImage = new Group();
-  layers.underlay.removeChildren();
-  layers.underlay.addChild(beforeImage);
-
-  const number = new PointText({
-    point: new Point(initCanvasWidth / 2, initCanvasHeight / 2),
-    fontSize: 24,
-    fontWeight: 'bold',
-    justification: 'center',
-    fillColor: 'green',
-  });
-  number.content = String(canvasIndex + 1);
-
-  number.fitBounds(
-    new Rectangle({
-      x: initCanvasWidth * 0.25,
-      y: initCanvasHeight * 0.25,
-      width: initCanvasWidth * 0.5,
-      height: initCanvasHeight * 0.5,
-    })
-  );
-  const message = new PointText({
-    point: new Point(initCanvasWidth / 2, initCanvasHeight / 2),
-    fontSize: 24,
-    justification: 'center',
-    fillColor: 'green',
-  });
-  message.content = '*Select image';
-  message.fitBounds(
-    new Rectangle({
-      x: initCanvasWidth * 0.35,
-      y: initCanvasHeight * 0.7,
-      width: initCanvasWidth * 0.3,
-      height: initCanvasHeight * 0.15,
-    })
-  );
-
-  beforeImage.addChild(number);
-  beforeImage.addChild(message);
-  beforeImage.locked = true;
 };
 
 const moveItem = (item: paper.Item, event: paper.ToolEvent) => {
@@ -618,7 +581,9 @@ const sketchResize = (itemBounds: paper.Rectangle, layers: ILayers, subRaster: p
   layers.sketch.children.forEach((child: paper.Item) => {
     if (child.data.type === 'history') {
       child.translate(new Point(translateX, translateY));
-      child.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
+      // child.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
+      child.scale(2);
+      child.selected = false;
     }
   });
   currentScale[scaleIndex] = {
@@ -660,7 +625,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     currColor,
     currToothImageUrl,
     size,
-    implantOpen,
+    initCanvasSize,
     setCurrentCanvasIndex,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -680,6 +645,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       toothImageTool: new paper.Tool(),
       rulerTool: new paper.Tool(),
       cropTool: new paper.Tool(),
+      layerMoveTool: new paper.Tool(),
     }),
     []
   );
@@ -695,8 +661,54 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const [isTextBoxOpen, setIsTextBoxOpen] = useState(false);
   const [canvasRect, setCanvasRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [cursor, setCursor] = useState('default');
+  const [isLayerMove, setIsLayerMove] = useState(false);
   // const [isEditText, setIsEditText] = useState(false);
+  // const [filteredData, setFilteredData] = useState<ImageData>();
+  const setUnderlay = (paper: paper.PaperScope, layers: ILayers, canvasIndex: number) => {
+    if (!layers) return;
+    paper.activate();
+    paper.project.view.matrix.reset();
+    let beforeImage = new Group();
+    layers.underlay.removeChildren();
+    layers.underlay.addChild(beforeImage);
 
+    const number = new PointText({
+      point: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
+      fontSize: 24,
+      fontWeight: 'bold',
+      justification: 'center',
+      fillColor: 'green',
+    });
+    number.content = String(canvasIndex + 1);
+
+    number.fitBounds(
+      new Rectangle({
+        x: initCanvasSize.width * 0.25,
+        y: initCanvasSize.height * 0.25,
+        width: initCanvasSize.width * 0.5,
+        height: initCanvasSize.height * 0.5,
+      })
+    );
+    const message = new PointText({
+      point: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
+      fontSize: 24,
+      justification: 'center',
+      fillColor: 'green',
+    });
+    message.content = '*Select image';
+    message.fitBounds(
+      new Rectangle({
+        x: initCanvasSize.width * 0.35,
+        y: initCanvasSize.height * 0.7,
+        width: initCanvasSize.width * 0.3,
+        height: initCanvasSize.height * 0.15,
+      })
+    );
+
+    beforeImage.addChild(number);
+    beforeImage.addChild(message);
+    beforeImage.locked = true;
+  };
   const settingBackground = (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, url: string) => {
     if (!layers) return;
     paper.activate();
@@ -707,7 +719,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     background.removeChildren();
 
     let raster = new Raster({
-      position: new Point(initCanvasWidth / 2, initCanvasHeight / 2),
+      position: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
       source: url,
       locked: true,
     });
@@ -716,8 +728,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         new Rectangle({
           x: 0,
           y: 0,
-          width: initCanvasWidth,
-          height: initCanvasHeight,
+          width: initCanvasSize.width,
+          height: initCanvasSize.height,
         })
       );
       background.addChild(raster);
@@ -1062,20 +1074,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
 
   Tools.moveTool.onMouseDown = (event: paper.ToolEvent) => {
-    const hitResult = paper.project.hitTest(event.point, hitOptions);
+    hitResult = paper.project.hitTest(event.point, hitOptions);
     if (!hitResult) {
       return;
     }
     item = hitResult.item;
     segment = hitResult.segment;
-    const sketch = findLayer(paper, 'sketch');
+
     if (item.parent.data.type === 'PointText') {
       if (option === 'edit') {
         isEditText = true;
 
         item.parent.parent.children.forEach((child: paper.Item) => {
           if (child.className === 'PointText') {
-            console.log(child);
             origin = child;
             pointTextId = child.data.PointTextId;
             setText((child as paper.PointText).content);
@@ -1084,16 +1095,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
             item.parent.data.scaleBase = event.point.subtract(item.parent.bounds.center);
           }
         });
-
-        // layers?.sketch.children.forEach((child: paper.Item) => {
-        //   if (item.parent.data.PointTextId === child.data.PointTextId && child.className === 'PointText') {
-        //     origin = child;
-        //     pointTextId = child.data.PointTextId;
-        //     setText((child as paper.PointText).content);
-        //     currText = pointText.content;
-
-        //   }
-        // });
 
         shape = new Shape.Rectangle({
           from: origin.bounds.topLeft,
@@ -1161,7 +1162,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       hitResult.item.selected = true;
 
       if (hitResult.item.parent.data.type === 'PointText' || hitResult.item.parent.data.type === 'implant') {
-        // paper.settings.hitTolerance = 0;
         hitResult.item.selected = false;
         option = hitResult.item.data.option;
         setCursor(cursorList[hitResult.item.data.option]);
@@ -1181,12 +1181,17 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     } else {
       setCursor('default');
       paper.project.activeLayer.selected = false;
-      Tools[action].activate();
+      if (!isLayerMove) {
+        Tools[action].activate();
+      }
     }
   };
   Tools.moveTool.onMouseDrag = (event: paper.ToolEvent) => {
-    if (!item.data) return;
-    if (item.data.handleSize === 0) {
+    if (isLayerMove && !event.item && !hitResult) {
+      findLayer(paper, 'sketch').view.translate(event.middlePoint.subtract(event.downPoint));
+    }
+    if (!item) return;
+    if (item?.data.handleSize === 0) {
       if (item.data.type === 'ruler') {
         if (segment) {
           moveSegment(segment, event);
@@ -1199,7 +1204,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       } else {
         moveItem(item, event);
       }
-    } else if (item.data.handleSize === 10) {
+    } else if (item?.data.handleSize === 10) {
       if (segment) {
         if (item.data.type === 'rectangle') {
           path = item as paper.Path;
@@ -1210,7 +1215,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       } else {
         moveItem(item, event);
       }
-    } else if (item.parent.data.type === 'crop') {
+    } else if (item.parent?.data.type === 'crop') {
       if (item.data.type === 'cropField') {
         moveItem(item.parent, event);
       } else {
@@ -1305,7 +1310,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     shape.remove();
     origin.remove();
 
-    layers?.sketch.children.forEach((child: paper.Item) => {
+    findLayer(paper, 'sketch').children.forEach((child: paper.Item) => {
       if (child.intersects(new Shape.Rectangle(bounds))) {
         child.selected = false;
         child.visible = false;
@@ -1430,12 +1435,13 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   Tools.cropTool.onMouseUp = (event: paper.ToolEvent) => {
     makeCropEditField();
   };
+
   useEffect(() => {
     if (!canvasRef.current) {
       return;
     }
     const canvas = canvasRef.current;
-
+    ctx = canvas.getContext('2d');
     paper.activate();
     paper.setup(canvas);
     const background = new paper.Layer();
@@ -1541,7 +1547,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!layers) return;
       paper.activate();
       settingBackground(paper, width, height, scaleX, scaleY, url);
-
       setCurrentImage(url);
     },
 
@@ -1572,6 +1577,51 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
       Tools.moveTool.activate();
     },
+    reset() {
+      findLayer(paper, 'sketch').view.matrix.reset();
+    },
+    move() {
+      setIsLayerMove(true);
+    },
+    flip(x: number, y: number) {
+      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
+    },
+    zoom(x: number, y: number) {
+      const scaleValue = initScaleX * x;
+      if (scaleValue > 4 || scaleValue < 0.25) return;
+      initScaleX *= x;
+      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
+    },
+    rotate(r: number) {
+      findLayer(paper, 'sketch').view.matrix.rotate(r, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
+    },
+    filter(filter: IFilter) {
+      if (!ctx) return;
+      let cmd = '';
+      if (filter.Brightness !== 0) {
+        cmd = cmd.concat(`brightness(${filter.Brightness + 100}%)`);
+      }
+      if (filter.Saturation !== 0) {
+        cmd = cmd.concat(`saturate(${filter.Saturation + 100}%)`);
+      }
+
+      if (filter.Contranst !== 0) {
+        cmd = cmd.concat(`contrast(${filter.Contranst + 100}%)`);
+      }
+      if (filter.HueRotate !== 0) {
+        cmd = cmd.concat(`hue-rotate(${filter.HueRotate}deg)`);
+      }
+      if (filter.Inversion > 0) {
+        cmd = cmd.concat(`invert(${filter.Inversion}%)`);
+      }
+      if (cmd.length > 0) {
+        ctx.filter = cmd;
+      } else {
+        ctx.filter = 'none';
+      }
+      paper.project.activeLayer.visible = false;
+      paper.project.activeLayer.visible = true;
+    },
   }));
 
   return (
@@ -1599,6 +1649,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           setCurrentCanvasIndex(canvasIndex);
         }}
         onMouseEnter={() => {
+          if (action === 'moveTool') {
+            setIsLayerMove(true);
+          } else {
+            setIsLayerMove(false);
+          }
           Tools[action].activate();
         }}
         onMouseUp={() => {
