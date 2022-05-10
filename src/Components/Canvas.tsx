@@ -105,7 +105,7 @@ const hitOptions = {
   segments: true,
   stroke: true,
   fill: true,
-  tolerance: 20,
+  tolerance: 4,
 };
 interface historyType {
   history: string;
@@ -131,7 +131,7 @@ let currentScale: ICurrentScale[] = [
     distanceScaleHeight: 1,
   },
 ];
-let initImageBounds: paper.Rectangle;
+// let initImageBounds: paper.Rectangle;ㄴ
 let itemBounds: paper.Rectangle;
 let diffWidth: number;
 let diffHeight: number;
@@ -452,7 +452,7 @@ const moveImplantInfo = (item: paper.Item, rotation: number) => {
   }
   if (pointText) pointText.bounds.center = new Point(dx, dy);
 };
-
+let cropButtonGroup: paper.Group;
 const makeCropField = (from: paper.Point, to: paper.Point) => {
   group = new Group({ selected: false });
   shape = new Shape.Rectangle({
@@ -461,11 +461,13 @@ const makeCropField = (from: paper.Point, to: paper.Point) => {
     fillColor: 'rgba(135,212,233,0.3)',
     strokeColor: 'rgba(135,212,233,1)',
     dashArray: [8, 8],
+    strokeWidth: 4,
+    strokeCap: 'round',
+    strokeJoin: 'round',
     data: { type: 'cropField' },
   });
   cropCircleButton = new Shape.Circle({
-    center: shape.bounds.center,
-    selected: false,
+    point: shape.bounds.center,
     fillColor: 'rgba(135,212,233,1)',
   });
   pointText = new PointText({
@@ -473,70 +475,62 @@ const makeCropField = (from: paper.Point, to: paper.Point) => {
     content: 'Click',
     fillColor: 'white',
     justification: 'center',
-    selected: false,
   });
-  group.addChild(shape);
 };
+
 const makeCropButton = () => {
-  cropCircleButton.position = shape.bounds.center;
   const smaller = Math.min(shape.bounds.width, shape.bounds.height);
-  if (smaller < 65) {
+  if (smaller < 120) {
     cropCircleButton.radius = smaller * 0.3;
+    pointText.fontSize = smaller * 0.2;
   } else {
-    cropCircleButton.radius = 20;
+    cropCircleButton.radius = 40;
+    pointText.fontSize = 30;
   }
-  pointText.position = shape.bounds.center;
-  pointText.fontSize = cropCircleButton.radius * 0.8;
-  pointText.insertAbove(cropCircleButton);
+  cropCircleButton.position = shape.bounds.center;
+  pointText.bounds.center = cropCircleButton.bounds.center;
 };
 const makeCropEditField = () => {
   const top = shape.clone();
   top.bounds.topCenter = shape.bounds.topCenter;
-  top.bounds.height = 10;
+  top.position.y -= 2;
+  top.bounds.height = 4;
   top.data = { type: 'up' };
   top.opacity = 0;
   const bottom = shape.clone();
   bottom.bounds.topCenter = shape.bounds.bottomCenter;
-  bottom.bounds.height = -10;
+  bottom.position.y += 2;
+  bottom.bounds.height = -4;
   bottom.data = { type: 'bottom' };
   bottom.opacity = 0;
   const left = shape.clone();
   left.bounds.topLeft = shape.bounds.topLeft;
-  left.bounds.width = 10;
+  left.position.x -= 2;
+  left.bounds.width = 4;
   left.data = { type: 'left' };
   left.opacity = 0;
 
   const right = shape.clone();
   right.bounds.topLeft = shape.bounds.topRight;
-  right.bounds.width = -10;
+  right.position.x += 2;
+  right.bounds.width = -4;
   right.data = { type: 'right' };
   right.opacity = 0;
   group.data = { type: 'crop' };
-  const cropButtonGroup = new Group([cropCircleButton, pointText]);
+
+  cropButtonGroup = new Group([cropCircleButton, pointText]);
   cropButtonGroup.data = { type: 'cropButtonGroup' };
-  cropCircleButton.addChild(pointText);
+  cropButtonGroup.position = shape.bounds.center;
+  const editCropGroup = new Group([top, bottom, left, right]);
+  editCropGroup.data = { type: 'editCropGroup' };
+  group.addChild(shape);
   group.addChild(cropButtonGroup);
-  group.addChild(top);
-  group.addChild(bottom);
-  group.addChild(left);
-  group.addChild(right);
+  group.addChild(editCropGroup);
 };
 const getSketchPoint = (point: paper.Point, layers: ILayers) => {
   const point0 = layers.sketch.matrix.inverseTransform(point);
-  // const point1 = currentGroup.matrix.inverseTransform(point0);
 
   return point0;
-};
-const getImageRegion = (image: paper.Raster, region: paper.Rectangle) => {
-  const contentWidth = image.bounds.width;
-  const contentHeight = image.bounds.height;
-  const bound0 = new Point((region.x * image.size.width) / contentWidth, (region.y * image.size.height) / contentHeight);
-  const bound1 = new Point(
-    ((region.x + region.width) * image.size.width) / contentWidth,
-    ((region.y + region.height) * image.size.height) / contentHeight
-  );
-
-  return new Rectangle(bound0, bound1);
 };
 
 const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
@@ -653,15 +647,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const [sketchIndex, setSketchIndex] = useState(0);
   const [r, g, b] = currColor.split(',');
   const fillColor = `${r},${g},${b},0.1)`;
-  // const [size, setSize] = useState(10);
   const [text, setText] = useState('');
   const [textBox, setTextBox] = useState({ x: 0, y: 0 });
   const [isTextBoxOpen, setIsTextBoxOpen] = useState(false);
   const [canvasRect, setCanvasRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [cursor, setCursor] = useState('default');
   const [isLayerMove, setIsLayerMove] = useState(false);
-  // const [isEditText, setIsEditText] = useState(false);
-  // const [filteredData, setFilteredData] = useState<ImageData>();
+
+  const activateMoveTool = useCallback((event: paper.ToolEvent) => {
+    if (event.item) {
+      Tools.moveTool.activate();
+    }
+  }, []);
+
   const setUnderlay = (paper: paper.PaperScope, layers: ILayers, canvasIndex: number) => {
     if (!layers) return;
     paper.activate();
@@ -732,7 +730,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       );
       background.addChild(raster);
       fitLayerInView(paper, width, height, scaleX, scaleY);
-      initImageBounds = background.firstChild.bounds;
+      // initImageBounds = background.firstChild.bounds;
       makeNewLayer(layers);
     };
   };
@@ -856,7 +854,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
   Tools.penTool.onMouseDown = (event: paper.ToolEvent): void => {
     removeHistory(sketchIndex);
-    // history.applyMatrix = true;
     paper.settings.handleSize = 0;
     path = new Path({
       strokeColor: currColor,
@@ -865,13 +862,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     });
   };
   Tools.penTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.penTool.onMouseDrag = (event: paper.ToolEvent) => {
-    if (!layers) return;
-    path.add(getSketchPoint(event.point, layers));
+    path.add(event.point);
   };
 
   Tools.penTool.onMouseUp = (event: paper.ToolEvent) => {
@@ -889,9 +883,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     });
   };
   Tools.pathTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.pathTool.onMouseDrag = (event: paper.ToolEvent) => {
     path.add(event.point);
@@ -912,9 +904,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     });
   };
   Tools.lineTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.lineTool.onMouseDrag = (event: paper.ToolEvent) => {
     path.segments[1].point = event.point;
@@ -937,18 +927,16 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     origin = shape.clone();
   };
   Tools.circleTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.circleTool.onMouseDrag = (event: paper.ToolEvent) => {
     makeShape(event.point, origin as paper.Shape);
   };
   Tools.circleTool.onMouseUp = (event: paper.ToolEvent) => {
-    let x = shape.position.x - shape.size.width / 2;
-    let y = shape.position.y - shape.size.height / 2;
-    let width = shape.size.width;
-    let height = shape.size.height;
+    const x = shape.position.x - shape.size.width / 2;
+    const y = shape.position.y - shape.size.height / 2;
+    const width = shape.size.width;
+    const height = shape.size.height;
 
     shape.remove();
     paper.project.activeLayer.children.at(-1)?.remove();
@@ -983,9 +971,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
 
   Tools.rectangleTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.rectangleTool.onMouseDrag = (event: paper.ToolEvent) => {
     makePathRectangle(event);
@@ -1031,9 +1017,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     origin = shape.clone();
   };
   Tools.textTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.textTool.onMouseDrag = (event: paper.ToolEvent) => {
     makeShape(event.point, origin as paper.Shape);
@@ -1061,7 +1045,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
 
     if (shape.bounds.width > 5 && shape.bounds.height > 5) {
-      // const nativeEvent: MouseEvent = (event as any).event;
       setTextBox({ x: event.point.x, y: event.point.y });
       setIsTextBoxOpen(true);
     } else {
@@ -1077,7 +1060,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
     item = hitResult.item;
     segment = hitResult.segment;
-    console.log(item);
     if (item.parent.data.type === 'PointText') {
       if (option === 'edit') {
         isEditText = true;
@@ -1135,13 +1117,13 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           item.parent.data.scaleBase = event.point.subtract(item.parent.bounds.center);
         }
       });
-    } else if (hitResult.item.parent.data.type === 'crop') {
+    } else if (item.parent.data.type === 'editCropGroup') {
       for (let element of direction) {
-        if (element === hitResult.item.data.type) {
-          origin = hitResult.item.parent.clone();
+        if (element === item.data.type) {
+          origin = item.parent.clone();
         }
       }
-    } else if (hitResult.item.parent.data.type === 'cropButtonGroup') {
+    } else if (item.parent.data.type === 'cropButtonGroup') {
       layers?.sketch.children.forEach((child: paper.Item) => {
         if (child.data.type === 'crop') {
           crop(child, layers, paper);
@@ -1152,26 +1134,36 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
 
   Tools.moveTool.onMouseMove = (event: paper.ToolEvent) => {
-    paper.settings.hitTolerance = 10;
+    // paper.settings.hitTolerance = 8;
     const hitResult = paper.project.hitTest(event.point);
     if (event.item) {
       paper.settings.handleSize = hitResult.item.data.handleSize;
       hitResult.item.selected = true;
 
       if (hitResult.item.parent.data.type === 'PointText' || hitResult.item.parent.data.type === 'implant') {
+        paper.settings.hitTolerance = 8;
         hitResult.item.selected = false;
         option = hitResult.item.data.option;
         setCursor(cursorList[hitResult.item.data.option]);
       } else if (hitResult.item.parent.data.type === 'Raster') {
+        paper.settings.hitTolerance = 8;
         hitResult.item.selected = false;
         option = hitResult.item.data.option;
         setCursor(cursorList[hitResult.item.data.option]);
-      } else if (hitResult.item.parent.data.type === 'crop' || hitResult.item.parent.data.type === 'cropButtonGroup') {
+      } else if (hitResult.item.parent.data.type === 'editCropGroup' || hitResult.item.parent.data.type === 'cropButtonGroup') {
+        paper.settings.hitTolerance = 0;
         hitResult.item.selected = false;
         hitResult.item.parent.selected = false;
-        setCursor('default');
+        setCursor('pointer');
+        option = '';
+      } else if (hitResult.item.parent.data.type === 'crop') {
+        paper.settings.hitTolerance = 0;
+        hitResult.item.selected = false;
+        hitResult.item.parent.selected = false;
+        setCursor('move');
         option = '';
       } else {
+        paper.settings.hitTolerance = 8;
         setCursor('default');
         option = '';
       }
@@ -1184,6 +1176,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
   };
   Tools.moveTool.onMouseDrag = (event: paper.ToolEvent) => {
+    paper.settings.hitTolerance = 8;
     if (isLayerMove && !event.item && !hitResult) {
       findLayer(paper, 'sketch').view.translate(event.middlePoint.subtract(event.downPoint));
     }
@@ -1215,36 +1208,37 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     } else if (item.parent?.data.type === 'crop') {
       if (item.data.type === 'cropField') {
         moveItem(item.parent, event);
-      } else {
-        for (let element of direction) {
-          if (element === item.data.type) {
-            let from;
-            let to;
-            if (element === 'up') {
-              from = new Point(origin.bounds.topLeft.x, event.point.y);
-              to = new Point(origin.bounds.bottomRight);
-            } else if (element === 'bottom') {
-              from = new Point(origin.bounds.topLeft);
-              to = new Point(origin.bounds.bottomRight.x, event.point.y);
-            } else if (element === 'left') {
-              from = new Point(event.point.x, origin.bounds.topLeft.y);
-              to = new Point(origin.bounds.bottomRight);
-            } else if (element === 'right') {
-              from = new Point(event.point.x, origin.bounds.topRight.y);
-              to = new Point(origin.bounds.bottomLeft);
-            }
+      }
+    } else if (item.parent?.data.type === 'editCropGroup') {
+      paper.settings.hitTolerance = 0;
+      for (let element of direction) {
+        if (element === item.data.type) {
+          let from;
+          let to;
+          if (element === 'up') {
+            from = new Point(origin.bounds.topLeft.x, event.point.y);
+            to = new Point(origin.bounds.bottomRight);
+          } else if (element === 'bottom') {
+            from = new Point(origin.bounds.topLeft);
+            to = new Point(origin.bounds.bottomRight.x, event.point.y);
+          } else if (element === 'left') {
+            from = new Point(event.point.x, origin.bounds.topLeft.y);
+            to = new Point(origin.bounds.bottomRight);
+          } else if (element === 'right') {
+            from = new Point(event.point.x, origin.bounds.topRight.y);
+            to = new Point(origin.bounds.bottomLeft);
+          }
 
-            layers?.sketch.children.forEach((child: paper.Item) => {
-              if (child.data.type === 'crop') {
-                child.remove();
-                origin.remove();
-              }
-            });
-            if (from && to) {
-              makeCropField(from, to);
-              makeCropButton();
-              makeCropEditField();
+          layers?.sketch.children.forEach((child: paper.Item) => {
+            if (child.data.type === 'crop') {
+              child.remove();
+              origin.remove();
             }
+          });
+          if (from && to) {
+            makeCropField(from, to);
+            makeCropButton();
+            makeCropEditField();
           }
         }
       }
@@ -1296,9 +1290,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     origin = shape.clone();
   };
   Tools.partClearTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.partClearTool.onMouseDrag = (event: paper.ToolEvent) => {
     makeShape(event.point, origin as paper.Shape);
@@ -1338,9 +1330,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     origin = shape.clone();
   };
   Tools.toothImageTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.toothImageTool.onMouseDrag = (event: paper.ToolEvent) => {
     makeShape(event.point, origin as paper.Shape);
@@ -1374,9 +1364,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     path.dashArray = [8 * currentScale[scaleIndex].distanceScaleWidth, 8 * currentScale[scaleIndex].distanceScaleWidth];
   };
   Tools.rulerTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.rulerTool.onMouseDrag = (event: paper.ToolEvent) => {
     if (!layers) return;
@@ -1413,32 +1401,26 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
   Tools.cropTool.onMouseDown = (event: paper.ToolEvent) => {
     removeHistory(sketchIndex);
-    if (isMakeCropField) {
-      layers?.sketch.children.forEach((child: paper.Item) => {
-        if (child.data.type === 'crop') {
-          child.remove();
-        }
-      });
-      isMakeCropField = false;
-    } else {
-      if (!layers) return;
-      makeCropField(getSketchPoint(event.point, layers), getSketchPoint(event.point, layers));
-      origin = shape.clone();
-    }
+    layers?.sketch.children.forEach((child: paper.Item) => {
+      if (child.data.type === 'crop') {
+        child.remove();
+      }
+    });
+    makeCropField(event.point, event.point);
+    origin = shape.clone();
   };
   Tools.cropTool.onMouseMove = (event: paper.ToolEvent) => {
-    if (event.item) {
-      Tools.moveTool.activate();
-    }
+    activateMoveTool(event);
   };
   Tools.cropTool.onMouseDrag = (event: paper.ToolEvent) => {
-    if (!layers) return;
-    makeShape(getSketchPoint(event.point, layers), origin as paper.Shape);
+    makeShape(event.point, origin as paper.Shape);
     makeCropButton();
-    isMakeCropField = true;
   };
   Tools.cropTool.onMouseUp = (event: paper.ToolEvent) => {
     makeCropEditField();
+    if (shape.size.width === 0 || shape.size.height === 0) {
+      group.remove();
+    }
   };
 
   useEffect(() => {
@@ -1513,7 +1495,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       origin.visible = false;
       layers.sketch.children.forEach((child: paper.Item) => {
         if (child.data.type === 'TextBackground') {
-          // console.log(child);
           child.remove();
         }
       });
@@ -1534,15 +1515,17 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   }, [sketchIndex]);
   useEffect(() => {
     if (!layers) return;
-
     if (currentImage) {
       layers.sketch.visible = true;
       if (layers.sketch.hasChildren()) {
-        // layers.sketch.removeChildren();
+        layers.sketch.removeChildren();
+        history.removeChildren();
+
+        undoHistoryArr.splice(0, undoHistoryArr.length);
       }
     } else {
       setUnderlay(paper, layers, canvasIndex);
-      // layers.sketch.visible = false;
+      layers.sketch.visible = false;
     }
     fitLayerInView(paper, width, height, scaleX, scaleY);
   }, [layers, currentImage, surface]);
