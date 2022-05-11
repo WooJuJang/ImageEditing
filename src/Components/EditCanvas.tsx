@@ -96,7 +96,21 @@ const toothImageUrls = {
   pfm: 'https://cvboard.develop.vsmart00.com/contents/crown-pfm.svg',
   zirconia: 'https://cvboard.develop.vsmart00.com/contents/crown-zirconia.svg',
 };
+const isBackgroundsKey = [0, 1, 2, 3, 4, 5] as const;
+type formatIsBackgroundKey = typeof isBackgroundsKey[number];
+type isBackgroundsType = {
+  [k in formatIsBackgroundKey]: boolean;
+};
 
+const isBackgrounds: isBackgroundsType = {
+  0: false,
+  1: false,
+  2: false,
+  3: false,
+  4: false,
+  5: false,
+};
+let photoUrl = '';
 const EditCanvas = () => {
   const [colorOpen, setColorOpen] = useState(false);
   const [implantOpen, setImplantOpen] = useState<boolean>(false);
@@ -104,6 +118,7 @@ const EditCanvas = () => {
   const [isSizeDropdown, setIsSizeDropdown] = useState(false);
   const [isToothImage, setIsToothImage] = useState(false);
   const [size, setSize] = useState(1);
+  const [isViewOriginal, setIsViewOriginal] = useState(true);
 
   const [surface, setSurface] = useState(1);
   const [currToothImageUrl, setCurrToothImageUrl] = useState(toothImageUrls.ceramic);
@@ -151,6 +166,26 @@ const EditCanvas = () => {
       [name]: parseInt(value),
     }));
   };
+
+  const settingPhoto = (photoUrl: string) => {
+    for (let i = 0; i < surface; i++) {
+      if (!isBackgrounds[i as formatIsBackgroundKey]) {
+        canvasRefs.current[i].settingPhoto(photoUrl);
+        isBackgrounds[i as formatIsBackgroundKey] = true;
+        return;
+      }
+    }
+  };
+  const inputImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        canvasRefs.current[5].settingPhoto(reader.result);
+        isBackgrounds[5] = true;
+      };
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  };
   useEffect(() => {
     canvasRefs.current[currentCanvasIndex].filter(filter);
   }, [filter.Brightness, filter.Saturation, filter.Contranst, filter.Inversion, filter.HueRotate]);
@@ -158,6 +193,12 @@ const EditCanvas = () => {
     if (!isImplantInput) return;
     canvasRefs.current[currentCanvasIndex].implantInput(implantInput);
   }, [isImplantInput]);
+  useEffect(() => {
+    for (let i = 0; i < surface; i++) {
+      canvasRefs.current[i].viewOriginal(isViewOriginal);
+    }
+  }, [isViewOriginal]);
+
   return (
     <div style={{ marginTop: '10px', width: '1000px' }}>
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
@@ -387,24 +428,85 @@ const EditCanvas = () => {
             clear
           </button>
         </div>
-        <button onClick={() => canvasRefs.current[0].settingPhoto('/testImage/test0.jpeg')}>image0</button>
-        <button onClick={() => canvasRefs.current[1].settingPhoto('/testImage/test1.png')}>image3</button>
-        <button onClick={() => canvasRefs.current[2].settingPhoto('/testImage/test2.jpeg')}>image0</button>
-        <button onClick={() => canvasRefs.current[3].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E')}>
-          image3
+        <span> 순서대로 이미지 배치: </span>
+        <button
+          onClick={() => {
+            photoUrl = '/testImage/test0.jpeg';
+            settingPhoto(photoUrl);
+          }}
+        >
+          이미지1
         </button>
-        <button onClick={() => canvasRefs.current[4].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E')}>
+        <button
+          onClick={() => {
+            photoUrl = '/testImage/test1.png';
+            settingPhoto(photoUrl);
+          }}
+        >
+          이미지2
+        </button>
+        <button
+          onClick={() => {
+            photoUrl = '/testImage/test2.jpeg';
+            settingPhoto(photoUrl);
+          }}
+        >
+          이미지3
+        </button>
+        <span>개별 이미지 배치: </span>
+        <button
+          onClick={() => {
+            canvasRefs.current[0].settingPhoto('/testImage/test0.jpeg');
+            isBackgrounds[0] = true;
+          }}
+        >
           image0
         </button>
-        <button onClick={() => canvasRefs.current[5].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E')}>
+        <button
+          onClick={() => {
+            canvasRefs.current[1].settingPhoto('/testImage/test1.png');
+            isBackgrounds[1] = true;
+          }}
+        >
           image3
         </button>
-
+        <button
+          onClick={() => {
+            canvasRefs.current[2].settingPhoto('/testImage/test2.jpeg');
+            isBackgrounds[2] = true;
+          }}
+        >
+          image0
+        </button>
+        <button
+          onClick={() => {
+            canvasRefs.current[3].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E');
+            isBackgrounds[3] = true;
+          }}
+        >
+          image3
+        </button>
+        <button
+          onClick={() => {
+            canvasRefs.current[4].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E');
+            isBackgrounds[4] = true;
+          }}
+        >
+          image0
+        </button>
+        <input type="file" onChange={inputImage}></input>
         <div>
           <span>Split: </span>
           {[1, 2, 4, 6].map((number) => (
             <button key={number} onClick={() => setSurface(number)}>{`${number} Surface`}</button>
           ))}
+          <button
+            onClick={() => {
+              setIsViewOriginal(!isViewOriginal);
+            }}
+          >
+            View Original
+          </button>
         </div>
         <div className="canvas-container" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%' }}>
           {new Array(surface).fill('').map((el, i) => {
@@ -427,7 +529,7 @@ const EditCanvas = () => {
                 currToothImageUrl={currToothImageUrl}
                 implantOpen={implantOpen}
                 filter={filter}
-                // image={currentImage}
+                isViewOriginal={isViewOriginal}
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
               />
             );

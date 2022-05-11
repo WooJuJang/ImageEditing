@@ -52,7 +52,6 @@ type propsType = {
   action: formatTool;
   width: number;
   height: number;
-  // image: string;
   surface: number;
   scaleX: number;
   scaleY: number;
@@ -62,8 +61,8 @@ type propsType = {
   currToothImageUrl: string;
   filter: IFilter;
   initCanvasSize: IInitCanvasSize;
-  // implantInput: IImplantInput;
-  // isImplantInput: boolean;
+  isViewOriginal: boolean;
+
   setCurrentCanvasIndex: (value: number) => void;
 };
 export type refType = {
@@ -75,7 +74,6 @@ interface ILayers {
   underlay: paper.Layer;
   sketch: paper.Layer;
 }
-// let canvas: HTMLCanvasElement;
 let path: paper.Path;
 let group: paper.Group;
 let history: paper.Group;
@@ -91,7 +89,6 @@ let cropCircleButton: paper.Shape;
 let isMakeCropField = false;
 let isEditText = false;
 let hitResult: paper.HitResult;
-// let isLayerMove = false;
 
 let crownImage: paper.Group;
 let implantImage: paper.Group;
@@ -475,6 +472,7 @@ const makeCropField = (from: paper.Point, to: paper.Point) => {
     content: 'Click',
     fillColor: 'white',
     justification: 'center',
+    fontSize: 0,
   });
 };
 
@@ -618,6 +616,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     currToothImageUrl,
     size,
     initCanvasSize,
+    isViewOriginal,
     setCurrentCanvasIndex,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -756,6 +755,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       }
     });
     if (!isHistory) {
+      history.removeChildren();
       history.addChild(item);
       layers.sketch.addChild(history);
     }
@@ -854,6 +854,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
   Tools.penTool.onMouseDown = (event: paper.ToolEvent): void => {
     removeHistory(sketchIndex);
+
     paper.settings.handleSize = 0;
     path = new Path({
       strokeColor: currColor,
@@ -1421,6 +1422,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     if (shape.size.width === 0 || shape.size.height === 0) {
       group.remove();
     }
+    origin.remove();
   };
 
   useEffect(() => {
@@ -1445,6 +1447,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     paper.project.addLayer(underlay);
     paper.project.addLayer(sketch);
     sketch.activate();
+
     history = new Group({
       data: { type: 'history' },
     });
@@ -1464,7 +1467,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
   useEffect(() => {
     if (isEditText) {
-      console.log(isEditText);
       item?.parent?.parent?.children.forEach((child: paper.Item) => {
         if (child.data.PointTextId === pointTextId && child.data.type === 'text') {
           (child as paper.PointText).content = text;
@@ -1516,7 +1518,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   useEffect(() => {
     if (!layers) return;
     if (currentImage) {
-      layers.sketch.visible = true;
+      layers.sketch.visible = isViewOriginal;
       if (layers.sketch.hasChildren()) {
         layers.sketch.removeChildren();
         history.removeChildren();
@@ -1610,10 +1612,14 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       paper.project.activeLayer.visible = false;
       paper.project.activeLayer.visible = true;
     },
+    viewOriginal(isViewOriginal: boolean) {
+      if (!layers) return;
+      layers.sketch.visible = isViewOriginal;
+    },
   }));
 
   return (
-    <div>
+    <>
       <TextModal
         open={isTextBoxOpen}
         canvas={canvasRect}
@@ -1648,7 +1654,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           paper.activate();
         }}
       />
-    </div>
+    </>
   );
 });
 
