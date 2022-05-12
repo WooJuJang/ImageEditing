@@ -3,6 +3,7 @@ import Paper, { PointText, Point, Path, Raster, Size, Shape, Group, Rectangle, T
 import { ICursorList } from '../PaperTypes';
 import TextModal from './TextModal';
 import { IImplantInput, IFilter } from './EditCanvas';
+import { Matrix } from 'paper/dist/paper-core';
 
 interface IEditField {
   group?: paper.Group;
@@ -22,7 +23,10 @@ export interface ICanvasScale {
   scaleX: number;
   scaleY: number;
 }
-
+const iconSize = {
+  width: 24,
+  height: 24,
+};
 const cursorList: ICursorList = {
   rotate: 'alias',
   resize: 'nwse-resize',
@@ -73,7 +77,32 @@ interface ILayers {
   background: paper.Layer;
   underlay: paper.Layer;
   sketch: paper.Layer;
+  overlay: paper.Layer;
 }
+const overlayKey = ['preview', 'visible', 'upload', 'subtract'];
+const assetsKey = ['scale', 'scalev', 'scaleh', 'preview', 'visible', 'upload', 'subtract'] as const;
+type formatAssetKey = typeof assetsKey[number];
+type assetsKeyType = {
+  [k in formatAssetKey]: string;
+};
+interface IAssetsKey {
+  key: formatAssetKey;
+  value: string;
+}
+const assets: assetsKeyType = {
+  scale: '/contents/scale.svg',
+  scalev: '/contents/scalev.svg',
+  scaleh: '/contents/scaleh.svg',
+
+  preview: '/contents/preview.svg',
+  visible: '/contents/visible.svg',
+  upload: '/contents/save.svg',
+  subtract: '/contents/subtract.svg',
+};
+type overlaySVGArrType = {
+  key: formatAssetKey;
+  item: paper.Item;
+};
 let path: paper.Path;
 let group: paper.Group;
 let history: paper.Group;
@@ -89,6 +118,8 @@ let cropCircleButton: paper.Shape;
 let isMakeCropField = false;
 let isEditText = false;
 let hitResult: paper.HitResult;
+let overlayGroup: paper.Group;
+// const overlaySVGArr: overlaySVGArrType[] = [];
 
 let crownImage: paper.Group;
 let implantImage: paper.Group;
@@ -128,6 +159,13 @@ let currentScale: ICurrentScale[] = [
     distanceScaleHeight: 1,
   },
 ];
+
+const state = {
+  isPreivew: false,
+  isVisible: false,
+  isUpload: false,
+  isSubtract: false,
+};
 // let initImageBounds: paper.Rectangle;ㄴ
 let itemBounds: paper.Rectangle;
 let diffWidth: number;
@@ -652,13 +690,30 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const [canvasRect, setCanvasRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [cursor, setCursor] = useState('default');
   const [isLayerMove, setIsLayerMove] = useState(false);
+  const [isOverlayIcon, setIsOverlayIcon] = useState(false);
 
   const activateMoveTool = useCallback((event: paper.ToolEvent) => {
     if (event.item) {
       Tools.moveTool.activate();
     }
   }, []);
+  const setOverlay = (): Promise<overlaySVGArrType[]> => {
+    return new Promise((resolve) => {
+      const overlaySVGArr: overlaySVGArrType[] = [];
+      Object.entries(assets).forEach(([key, value]) => {
+        overlayGroup.importSVG(assets[key as formatAssetKey], (item: paper.Item) => {
+          overlaySVGArr.push({ key: key as formatAssetKey, item: item });
 
+          if (overlaySVGArr.length === 7) {
+            overlayGroup.removeChildren();
+            resolve(overlaySVGArr);
+            // console.log(canvasIndex, new Point(width - iconSize.width * 2, iconSize.height / 2));
+            // overlayGroup.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+          }
+        });
+      });
+    });
+  };
   const setUnderlay = (paper: paper.PaperScope, layers: ILayers, canvasIndex: number) => {
     if (!layers) return;
     paper.activate();
@@ -704,6 +759,68 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     beforeImage.addChild(message);
     beforeImage.locked = true;
   };
+  const setOverlayGroup = () => {
+    // if (!layers) return;
+
+    // layers.overlay.addChild(overlayGroup);
+    layers?.overlay.matrix.reset();
+    layers?.overlay.matrix.scale(1 / scaleX, 1 / scaleY);
+    console.log('setoverlayergroup');
+    layers?.overlay.children.forEach((child: paper.Item) => {
+      console.log(child);
+      if (child.data.type === 'overlayGroup') {
+        if (child.children.length === overlayKey.length) {
+          child.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+          console.log('in');
+        }
+      }
+    });
+    // layers.overlay.firstChild.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+  };
+  // const setOverlay = () => {
+  //   return new Promise((resolve) => {
+  //     const preview = new Shape.Rectangle({});
+  //     const visible = new Shape.Rectangle({});
+  //     const upload = new Shape.Rectangle({});
+  //     const subtract = new Shape.Rectangle({});
+
+  //     preview.importSVG(assets.preview, (item: paper.Item) => {
+  //       overlayGroup.addChild(item);
+  //       state.isPreivew = true;
+  //       console.log(item);
+  //       console.log('1');
+  //     });
+
+  //     visible.importSVG(assets.visible, (item: paper.Item) => {
+  //       item.position.x += iconSize.width;
+  //       state.isVisible = true;
+  //       overlayGroup.addChild(item);
+  //       console.log('2');
+  //     });
+
+  //     upload.importSVG(assets.upload, (item: paper.Item) => {
+  //       item.position.x += iconSize.width * 2;
+  //       state.isUpload = true;
+  //       overlayGroup.addChild(item);
+  //       console.log('3');
+  //     });
+
+  //     subtract.importSVG(assets.subtract, (item: paper.Item) => {
+  //       item.position.x += iconSize.width * 3;
+  //       state.isSubtract = true;
+  //       overlayGroup.addChild(item);
+  //       // overlayGroup.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+  //       overlayGroup.position.x = width - iconSize.width * 2;
+  //       layers?.overlay.addChild(overlayGroup);
+  //       console.log('4');
+  //     });
+  //     preview.remove();
+  //     visible.remove();
+  //     upload.remove();
+  //     subtract.remove();
+  //   });
+  // };
+
   const settingBackground = (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, url: string) => {
     if (!layers) return;
     paper.activate();
@@ -1442,10 +1559,98 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     const sketch = new paper.Layer();
     sketch.name = 'sketch';
     sketch.applyMatrix = false;
+    const overlay = new paper.Layer();
+    overlay.name = 'overlay';
+    overlay.applyMatrix = false;
+    overlay.visible = true;
+
+    overlayGroup = new Group({
+      data: { type: 'overlayGroup' },
+    });
+    overlay.addChild(overlayGroup);
+    // const preview = new Group({});
+    // const visible = new Group({});
+    // const upload = new Group({});
+    // const subtract = new Group({});
+    overlayKey.forEach((key, index) => {
+      const tempItem = new Group();
+
+      tempItem.importSVG(assets[key as formatAssetKey], (item: paper.Item) => {
+        item.position.x += iconSize.width * index;
+        overlay.firstChild.addChild(item);
+        if (overlay.firstChild.children.length === overlayKey.length) {
+          overlay.firstChild.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+
+          // setOverlayGroup();
+        }
+      });
+    });
+
+    // visible.importSVG(assets.visible, (item: paper.Item) => {
+    //   item.position.x += iconSize.width;
+    //   overlayGroup.addChild(item);
+    //   console.log('2');
+
+    const overlaySVGArr: overlaySVGArrType[] = [];
+
+    // Object.entries(assets).forEach(([key, value]) => {
+    //   overlayGroup.importSVG(assets[key as formatAssetKey], (item: paper.Item) => {
+    //     overlaySVGArr.push({ key: key as formatAssetKey, item: item });
+
+    //     if (overlaySVGArr.length === 7) {
+    //       overlayGroup.removeChildren();
+    //     }
+    //   });
+    // });
+
+    // (async () => {
+    //   let result: overlaySVGArrType[] = await setOverlay();
+    //   if (result) {
+    //     result.forEach((data: overlaySVGArrType) => {
+    //       if (data.key === 'preview') {
+    //         overlayGroup.addChild(data.item);
+    //       } else if (data.key === 'visible') {
+    //         data.item.position.x += iconSize.width;
+    //         overlayGroup.addChild(data.item);
+    //       } else if (data.key === 'upload') {
+    //         data.item.position.x += iconSize.width * 2;
+    //         overlayGroup.addChild(data.item);
+    //       } else if (data.key === 'subtract') {
+    //         data.item.position.x += iconSize.width * 3;
+    //         overlayGroup.addChild(data.item);
+    //       }
+    //     });
+    //     overlay.addChild(overlayGroup);
+    //     overlayGroup.position = new Point(300, 300);
+    //     // overlayGroup.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+    //   }
+    // })();
+
+    // });
+    // upload.importSVG(assets.upload, (item: paper.Item) => {
+    //   item.position.x += iconSize.width * 2;
+    //   overlayGroup.addChild(item);
+    //   console.log('3');
+
+    // });
+    // subtract.importSVG(assets.subtract, (item: paper.Item) => {
+    //   item.position.x += iconSize.width * 3;
+    //   overlayGroup.addChild(item);
+    //   overlay.addChild(overlayGroup);
+    //   console.log('4');
+
+    //   preview.remove();
+    //   visible.remove();
+    //   upload.remove();
+    //   subtract.remove();
+
+    //   setIsOverlayIcon(true);
+    // });
 
     paper.project.addLayer(background);
     paper.project.addLayer(underlay);
     paper.project.addLayer(sketch);
+    paper.project.addLayer(overlay);
     sketch.activate();
 
     history = new Group({
@@ -1462,6 +1667,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       background: background,
       underlay: underlay,
       sketch: sketch,
+      overlay: overlay,
     });
   }, []);
 
@@ -1530,6 +1736,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       layers.sketch.visible = false;
     }
     fitLayerInView(paper, width, height, scaleX, scaleY);
+    setOverlayGroup();
   }, [layers, currentImage, surface]);
 
   useImperativeHandle(ref, () => ({
@@ -1643,12 +1850,18 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           setCurrentCanvasIndex(canvasIndex);
         }}
         onMouseEnter={() => {
+          if (!layers) return;
           if (action === 'moveTool') {
             setIsLayerMove(true);
           } else {
             setIsLayerMove(false);
           }
+          layers.overlay.visible = true;
           Tools[action].activate();
+        }}
+        onMouseLeave={() => {
+          if (!layers) return;
+          layers.overlay.visible = false;
         }}
         onMouseUp={() => {
           paper.activate();

@@ -3,7 +3,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
 import Canvas, { formatTool, ToolKey } from './Canvas';
-
+import html2canvas from 'html2canvas';
 export interface IImplantInput {
   crown: string;
   implantImage: string;
@@ -123,7 +123,9 @@ const EditCanvas = () => {
   const [surface, setSurface] = useState(1);
   const [currToothImageUrl, setCurrToothImageUrl] = useState(toothImageUrls.ceramic);
   const [isImplantInput, setIsImplantInput] = useState(false);
+  const [isScreenShot, setIsScreenShot] = useState(false);
 
+  const canvasContainer = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<any[]>([]);
 
   const initCanvasSize = {
@@ -186,6 +188,19 @@ const EditCanvas = () => {
       reader.readAsDataURL(e.target.files[0]);
     }
   };
+
+  const SaveToPc = async () => {
+    const container = await html2canvas(canvasContainer.current as HTMLDivElement);
+    const dataURL = container.toDataURL('image/png');
+    // downloadjs(dataURL, 'download.png', 'image/png');
+    const link = document.createElement('a');
+    document.body.appendChild(link);
+    link.href = dataURL;
+    link.download = 'image-download.png';
+    link.click();
+    document.body.removeChild(link);
+  };
+
   useEffect(() => {
     canvasRefs.current[currentCanvasIndex].filter(filter);
   }, [filter.Brightness, filter.Saturation, filter.Contranst, filter.Inversion, filter.HueRotate]);
@@ -507,8 +522,27 @@ const EditCanvas = () => {
           >
             View Original
           </button>
+          <button onClick={() => setIsScreenShot(!isScreenShot)}>ScreenShot</button>
+          <div
+            style={{
+              visibility: isScreenShot ? 'visible' : 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'absolute',
+              left: '460px',
+              top: '200px',
+            }}
+          >
+            <button>Save to Clever</button>
+            <button onClick={SaveToPc}>Save to Pc</button>
+          </div>
         </div>
-        <div className="canvas-container" style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%' }}>
+        <div
+          className="canvas-container"
+          id="canvas"
+          ref={canvasContainer}
+          style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%' }}
+        >
           {new Array(surface).fill('').map((el, i) => {
             return (
               <Canvas

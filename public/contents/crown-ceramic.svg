@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="76" height="76" viewBox="0 0 76 76">
+    <defs>
+        <linearGradient id="ryijqknu6b" x1="10.392%" x2="60.613%" y1="50%" y2="50%">
+            <stop offset="0%" stop-color="#EBE6E2"/>
+            <stop offset="32.153%" stop-color="#D1D1D1"/>
+            <stop offset="100%" stop-color="#FFF"/>
+        </linearGradient>
+        <linearGradient id="lt2p4jj1wa" x1="50%" x2="50%" y1="100%" y2="0%">
+            <stop offset="0%" stop-color="#FFF"/>
+            <stop offset="100%" stop-color="#979797"/>
+        </linearGradient>
+    </defs>
+    <g fill="none" fill-rule="evenodd">
+        <g>
+            <g>
+                <path d="M0 0H76V76H0z" transform="translate(-148 -876) translate(148 876)"/>
+                <path fill="url(#ryijqknu6b)" stroke="url(#lt2p4jj1wa)" stroke-width="2" d="M38.316 11.903c3.794.97 6.806 1.447 9.034 1.447H63.4c9.148 18.589 12.56 30.792 9.627 36.44-4.397 8.465-15.569 13.972-19.302 15.02-2.481.698-7.64-.37-15.449-2.995-4.424-.98-7.054-.601-8.279.59-1.01.982-4.61 1.347-10.553 1.431h0L2.515 49.713c-.707-3.903-.686-7.74.064-11.51.778-3.914 4.01-11.81 9.662-23.697h0l18.58-1.162z" transform="translate(-148 -876) translate(148 876) matrix(1 0 0 -1 0 76.878)"/>
+            </g>
+        </g>
+    </g>
+</svg>
