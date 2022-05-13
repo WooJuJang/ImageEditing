@@ -178,6 +178,10 @@ const EditCanvas = () => {
       }
     }
   };
+  const deletePhoto = (canvasIndex: number) => {
+    isBackgrounds[canvasIndex as formatIsBackgroundKey] = false;
+  };
+
   const inputImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const reader = new FileReader();
@@ -563,8 +567,11 @@ const EditCanvas = () => {
                 currToothImageUrl={currToothImageUrl}
                 implantOpen={implantOpen}
                 filter={filter}
+                setFilter={setFilter}
+                setIsViewOriginal={setIsViewOriginal}
                 isViewOriginal={isViewOriginal}
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
+                deletePhoto={deletePhoto}
               />
             );
           })}
