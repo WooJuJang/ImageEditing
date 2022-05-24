@@ -1,9 +1,9 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-
+import html2canvas from 'html2canvas';
+import React, { useEffect, useRef, useState } from 'react';
+import Canvas, { formatTool } from './Canvas';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
-import Canvas, { formatTool, ToolKey } from './Canvas';
-import html2canvas from 'html2canvas';
+
 export interface IImplantInput {
   crown: string;
   implantImage: string;
@@ -26,21 +26,25 @@ const layeroutTemplete = [
     name: '1x1',
     size: [1, 1],
     scale: [1, 1],
+    view: [1, 1],
   },
   {
     name: '2x1',
-    size: [0.5, 1],
-    scale: [0.5, 1],
+    size: [0.5, 0.5],
+    scale: [0.5, 0.5],
+    view: [0.5, 1],
   },
   {
     name: '2x2',
     size: [0.5, 0.5],
     scale: [0.5, 0.5],
+    view: [0.5, 0.5],
   },
   {
     name: '3x2',
-    size: [0.3333, 0.5],
-    scale: [0.3333, 0.5],
+    size: [0.3333, 0.3333],
+    scale: [0.3333, 0.3333],
+    view: [0.3333, 0.5],
   },
 ];
 const filterKey = ['Brightness', 'Saturation', 'Contranst', 'HueRotate', 'Inversion'] as const;
@@ -129,7 +133,7 @@ const EditCanvas = () => {
   const canvasRefs = useRef<any[]>([]);
 
   const initCanvasSize = {
-    width: 1000,
+    width: 1200,
     height: 750,
   };
 
@@ -219,7 +223,7 @@ const EditCanvas = () => {
   }, [isViewOriginal]);
 
   return (
-    <div style={{ marginTop: '10px', width: '1000px' }}>
+    <div style={{ marginTop: '10px', width: '1200px' }}>
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
       {implantOpen && (
         <InsertImplants
@@ -475,7 +479,7 @@ const EditCanvas = () => {
         <span>개별 이미지 배치: </span>
         <button
           onClick={() => {
-            canvasRefs.current[0].settingPhoto('/testImage/test0.jpeg');
+            canvasRefs.current[0].settingPhoto('https://dentalclever-contents.s3.ap-northeast-2.amazonaws.com/consults/bg.01.png');
             isBackgrounds[0] = true;
           }}
         >
@@ -483,7 +487,7 @@ const EditCanvas = () => {
         </button>
         <button
           onClick={() => {
-            canvasRefs.current[1].settingPhoto('/testImage/test1.png');
+            canvasRefs.current[1].settingPhoto('https://dentalclever-contents.s3.ap-northeast-2.amazonaws.com/consults/bg.02.png');
             isBackgrounds[1] = true;
           }}
         >
@@ -491,7 +495,7 @@ const EditCanvas = () => {
         </button>
         <button
           onClick={() => {
-            canvasRefs.current[2].settingPhoto('/testImage/test2.jpeg');
+            canvasRefs.current[2].settingPhoto('https://dentalclever-contents.s3.ap-northeast-2.amazonaws.com/consults/bg.03.png');
             isBackgrounds[2] = true;
           }}
         >
@@ -499,7 +503,7 @@ const EditCanvas = () => {
         </button>
         <button
           onClick={() => {
-            canvasRefs.current[3].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E');
+            canvasRefs.current[3].settingPhoto('https://dentalclever-contents.s3.ap-northeast-2.amazonaws.com/consults/bg.04.png');
             isBackgrounds[3] = true;
           }}
         >
@@ -507,7 +511,7 @@ const EditCanvas = () => {
         </button>
         <button
           onClick={() => {
-            canvasRefs.current[4].settingPhoto('https://t1.daumcdn.net/cfile/tistory/24283C3858F778CA2E');
+            canvasRefs.current[4].settingPhoto('https://dentalclever-contents.s3.ap-northeast-2.amazonaws.com/consults/bg.05.png');
             isBackgrounds[4] = true;
           }}
         >
@@ -554,6 +558,10 @@ const EditCanvas = () => {
                 ref={(ref) => {
                   canvasRefs.current[i] = ref;
                 }}
+                view={[
+                  initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+                  initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+                ]}
                 canvasIndex={i}
                 action={action}
                 surface={surface}
@@ -562,6 +570,8 @@ const EditCanvas = () => {
                 initCanvasSize={initCanvasSize}
                 scaleX={layeroutTemplete[Math.floor(surface / 2)].scale[0]}
                 scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
+                viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
+                viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
                 currColor={currColor}
                 size={size}
                 currToothImageUrl={currToothImageUrl}

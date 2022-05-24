@@ -1,6 +1,5 @@
+import Paper, { Group, Point, PointText, Raster, Tool } from 'paper';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import Paper, { Raster, PointText, Group, Point, Tool, Size, Rectangle } from 'paper';
-import { rejects } from 'assert';
 interface IImplantInput {
   crown: string;
   implantImage: string;
