@@ -103,7 +103,7 @@ const PreviewModal = (props: IProps) => {
 
                 backgroundPosition: 'center center',
                 backgroundOrigin: 'border-box',
-                backgroundSize: imgWidth > imgHeight ? 'contain' : 'contain',
+                backgroundSize: imgWidth > imgHeight ? 'cover' : 'contain',
                 backgroundRepeat: 'no-repeat',
                 backgroundColor: 'black',
               }}
@@ -122,7 +122,6 @@ const PreviewModal = (props: IProps) => {
           display: 'flex',
           justifyContent: 'space-around',
           zIndex: '2',
-          visibility: 'hidden',
         }}
       >
         <button onClick={() => handleZoom(1.25)}>zoomIn</button>

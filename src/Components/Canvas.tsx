@@ -63,7 +63,7 @@ type propsType = {
   viewX: number;
   viewY: number;
   currColor: string;
-  size: number;
+  drawSize: number;
   implantOpen: boolean;
   currToothImageUrl: string;
   filter: IFilter;
@@ -73,6 +73,7 @@ type propsType = {
   isViewOriginal: boolean;
   deletePhoto: (value: number) => void;
   setCurrentCanvasIndex: (value: number) => void;
+  setIsImageLoad: (value: boolean) => void;
 };
 export type refType = {
   // hello: () => void;
@@ -194,10 +195,16 @@ const findLayer = (paper: paper.PaperScope, name: string): paper.Layer => {
 };
 const fitLayerInView = (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, view: number[]) => {
   paper.project.view.matrix.reset();
+
   // paper.project.view.viewSize = new Size(width, height);
+
   paper.project.view.viewSize = new Size(view[0], view[1]);
   // paper.project.view.viewSize = new Size(1200, 750);
   paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
+  const background = findLayer(paper, 'background');
+  const sketch = findLayer(paper, 'sketch');
+  sketch.translate(new Point(background.position.subtract(sketch.position)));
+  sketch.applyMatrix = true;
 };
 
 const removeHistory = (sketchIndex: number) => {
@@ -664,13 +671,14 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     surface,
     currColor,
     currToothImageUrl,
-    size,
+    drawSize,
     setFilter,
     initCanvasSize,
     setIsViewOriginal,
     isViewOriginal,
     deletePhoto,
     setCurrentCanvasIndex,
+    setIsImageLoad,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paper = useMemo(() => new Paper.PaperScope(), []);
@@ -975,7 +983,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     paper.settings.handleSize = 0;
     path = new Path({
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
       applyMatrix: true,
     });
   };
@@ -997,7 +1005,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     path = new paper.Path({
       segments: [event.point],
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
     });
   };
   Tools.pathTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -1018,7 +1026,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       from: new Point(event.point),
       to: new Point(event.point),
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
     });
   };
   Tools.lineTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -1038,7 +1046,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     shape = new Shape.Ellipse({
       point: [event.point.x, event.point.y],
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
       applyMatrix: false,
     });
 
@@ -1063,7 +1071,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       point: [x, y],
       size: [width, height],
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
       data: { handleSize: 10 },
     });
 
@@ -1081,7 +1089,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       from: new Point(event.point),
       to: new Point(event.point),
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
       data: { type: 'rectangle' },
     });
 
@@ -1105,7 +1113,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       from: from,
       to: to,
       strokeColor: currColor,
-      strokeWidth: size,
+      strokeWidth: drawSize,
 
       data: { handleSize: 10, type: 'rectangle' },
     });
@@ -1266,24 +1274,15 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
             });
           } else if (type === 'preview') {
             if (currentImage) {
-              console.log(initCanvasSize, scaleX, scaleY);
               findLayer(paper, 'overlay').visible = false;
-              // console.log(1 / view[0], 1 / view[1]);
-              // paper.view.viewSize = new Size(1200, 750);
-
-              // paper.view.scale(1 / scaleX, 1 / scaleY, new Point(0, 1500 * (viewY - viewX)));
               paper.view.update();
 
               paper.view.element.toBlob((blob: any) => {
                 const url = URL.createObjectURL(blob);
-                // window.open(url, '[blank]');
                 console.log(findLayer(paper, 'background').bounds.size);
                 setPreviewUrl(url);
                 setIsPreview(true);
               });
-              // paper.view.viewSize = new Size(view[0], view[1]);
-              // paper.view.scale(scaleX, scaleY, new Point(0, 1500 * (viewY - viewX)));
-              // paper.view.update();
             }
           }
         }
@@ -1655,8 +1654,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       sketch: sketch,
       overlay: overlay,
     });
+    setIsImageLoad(false);
   }, []);
-
   useEffect(() => {
     if (isEditText) {
       item?.parent?.parent?.children.forEach((child: paper.Item) => {
@@ -1707,16 +1706,23 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex]?.history);
     layers?.background.importJSON(undoHistoryArr[sketchIndex]?.background);
   }, [sketchIndex]);
+
+  useEffect(() => {
+    if (!currentImage) {
+      setIsImageLoad(false);
+      return;
+    }
+    paper.view.matrix.reset();
+    paper.view.viewSize = new Size(width, height);
+    paper.view.scale(width / 1200, new Point(0, paper.view.bounds.leftCenter.y));
+    setIsImageLoad(false);
+  }, [width]);
+
   useEffect(() => {
     if (!layers) return;
     if (currentImage) {
       layers.sketch.visible = isViewOriginal;
-      if (layers.sketch.hasChildren()) {
-        layers.sketch.removeChildren();
-        history.removeChildren();
 
-        undoHistoryArr.splice(0, undoHistoryArr.length);
-      }
       settingBackground(paper, width, height, scaleX, scaleY, currentImage);
     } else {
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
@@ -1732,7 +1738,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     settingPhoto(url: string) {
       if (!layers) return;
       paper.activate();
-      settingBackground(paper, width, height, scaleX, scaleY, url);
+
+      layers.sketch.removeChildren();
+      history.removeChildren();
+      undoHistoryArr.splice(0, undoHistoryArr.length);
+
       setCurrentImage(url);
     },
 
@@ -1747,7 +1757,37 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       setSketchIndex(sketchIndex + 1);
     },
     erase() {
-      Tools.partClearTool.activate();
+      // Tools.partClearTool.activate();
+      if (!canvasRef.current) return;
+      paper.project.view.matrix.reset();
+      // canvasRef.current.width = 300;
+      paper.view.viewSize = new Size(300, 750);
+      paper.view.scale(0.25, 0.25, new Point(0, 0));
+
+      const underlay = findLayer(paper, 'underlay');
+      underlay.visible = false;
+      const background = findLayer(paper, 'background');
+      background.removeChildren();
+
+      let raster = new Raster({
+        crossOrigin: 'anonymous',
+        source: currentImage,
+        position: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
+        locked: true,
+      });
+      raster.onLoad = () => {
+        raster.fitBounds(
+          new Rectangle({
+            x: 0,
+            y: 0,
+            // width: initCanvasSize.width,
+            // height: initCanvasSize.height,
+            width: paper.view.bounds.width,
+            height: paper.view.bounds.height,
+          })
+        );
+        background.addChild(raster);
+      };
     },
     clear() {
       if (!layers) return;
@@ -1868,8 +1908,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       <canvas
         ref={canvasRef}
         style={{
-          width: width,
-          height: height,
+          width: '100%',
+          height: '100%',
           backgroundColor: 'black',
           cursor: cursor,
         }}

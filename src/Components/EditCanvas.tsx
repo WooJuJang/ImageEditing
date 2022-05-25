@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Canvas, { formatTool } from './Canvas';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
+import { debounce } from 'lodash';
 
 export interface IImplantInput {
   crown: string;
@@ -27,24 +28,40 @@ const layeroutTemplete = [
     size: [1, 1],
     scale: [1, 1],
     view: [1, 1],
+    templates: {
+      columns: '100%',
+      rows: '100%',
+    },
   },
   {
     name: '2x1',
     size: [0.5, 0.5],
     scale: [0.5, 0.5],
     view: [0.5, 1],
+    templates: {
+      columns: '50% 50%',
+      rows: '100%',
+    },
   },
   {
     name: '2x2',
     size: [0.5, 0.5],
     scale: [0.5, 0.5],
     view: [0.5, 0.5],
+    templates: {
+      columns: '50% 50%',
+      rows: '50% 50%',
+    },
   },
   {
     name: '3x2',
     size: [0.3333, 0.3333],
     scale: [0.3333, 0.3333],
     view: [0.3333, 0.5],
+    templates: {
+      columns: '33.33% 33.33% 33.33%',
+      rows: '50% 50%',
+    },
   },
 ];
 const filterKey = ['Brightness', 'Saturation', 'Contranst', 'HueRotate', 'Inversion'] as const;
@@ -121,8 +138,11 @@ const EditCanvas = () => {
   const [currColor, setCurrColor] = useState('rgba(255,255,32,1)');
   const [isSizeDropdown, setIsSizeDropdown] = useState(false);
   const [isToothImage, setIsToothImage] = useState(false);
-  const [size, setSize] = useState(1);
+  const [drawSize, setDrawSize] = useState(1);
   const [isViewOriginal, setIsViewOriginal] = useState(true);
+  const canvasRefs = useRef<any[]>([]);
+
+  const [isImageLoad, setIsImageLoad] = useState(false);
 
   const [surface, setSurface] = useState(1);
   const [currToothImageUrl, setCurrToothImageUrl] = useState(toothImageUrls.ceramic);
@@ -130,8 +150,11 @@ const EditCanvas = () => {
   const [isScreenShot, setIsScreenShot] = useState(false);
 
   const canvasContainer = useRef<HTMLDivElement>(null);
-  const canvasRefs = useRef<any[]>([]);
 
+  const [canvasSize, setCanvasSize] = useState({
+    width: 1200,
+    height: 750,
+  });
   const initCanvasSize = {
     width: 1200,
     height: 750,
@@ -222,8 +245,34 @@ const EditCanvas = () => {
     }
   }, [isViewOriginal]);
 
+  const handleResize = debounce(() => {
+    if (window.innerWidth > 600 && window.innerWidth < 1200) {
+      setCanvasSize({
+        width: window.innerWidth / 2,
+        height: 750,
+      });
+    } else {
+      setCanvasSize({
+        width: initCanvasSize.width / 2,
+        height: 750,
+      });
+    }
+    setIsImageLoad(false);
+  }, 100);
+  useEffect(() => {
+    window.addEventListener('resize', () => {
+      setIsImageLoad(true);
+      handleResize();
+    });
+    return () => {
+      window.removeEventListener('resize', () => {
+        setIsImageLoad(true);
+        handleResize();
+      });
+    };
+  }, []);
   return (
-    <div style={{ marginTop: '10px', width: '1200px' }}>
+    <div style={{ marginTop: '10px' }}>
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
       {implantOpen && (
         <InsertImplants
@@ -233,6 +282,7 @@ const EditCanvas = () => {
           setIsImplantInput={setIsImplantInput}
         />
       )}
+      {isImageLoad && <div style={{ backgroundColor: 'white', width: '100vw', height: '100vh' }}> Image Load</div>}
       <div>
         <span>Style: </span>
         <button
@@ -242,14 +292,14 @@ const EditCanvas = () => {
         >
           Color
         </button>
-        <button onClick={() => setIsSizeDropdown(!isSizeDropdown)}>{size}pt</button>
+        <button onClick={() => setIsSizeDropdown(!isSizeDropdown)}>{drawSize}pt</button>
         <nav className="size-dropdown" style={{ display: isSizeDropdown ? 'block' : 'none' }}>
           <ul>
             {[1, 2, 4, 8, 16].map((number) => (
               <li
                 key={number}
                 onClick={() => {
-                  setSize(number);
+                  setDrawSize(number);
                   setIsSizeDropdown(false);
                 }}
               >
@@ -521,7 +571,16 @@ const EditCanvas = () => {
         <div>
           <span>Split: </span>
           {[1, 2, 4, 6].map((number) => (
-            <button key={number} onClick={() => setSurface(number)}>{`${number} Surface`}</button>
+            <button
+              key={number}
+              onClick={() => {
+                setCanvasSize({
+                  width: initCanvasSize.width * layeroutTemplete[Math.floor(number / 2)].size[0],
+                  height: initCanvasSize.height * layeroutTemplete[Math.floor(number / 2)].size[1],
+                });
+                setSurface(number);
+              }}
+            >{`${number} Surface`}</button>
           ))}
           <button
             onClick={() => {
@@ -549,7 +608,14 @@ const EditCanvas = () => {
           className="canvas-container"
           id="canvas"
           ref={canvasContainer}
-          style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%' }}
+          // style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%', height: '750px' }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: layeroutTemplete[Math.floor(surface / 2)].templates.columns,
+            gridTemplateRows: layeroutTemplete[Math.floor(surface / 2)].templates.rows,
+            minWidth: '600px',
+            maxWidth: '1200px',
+          }}
         >
           {new Array(surface).fill('').map((el, i) => {
             return (
@@ -565,15 +631,17 @@ const EditCanvas = () => {
                 canvasIndex={i}
                 action={action}
                 surface={surface}
-                width={initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].size[0]}
-                height={initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].size[1]}
+                // width={initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].size[0]}
+                // height={initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].size[1]}
+                width={canvasSize.width}
+                height={canvasSize.height}
                 initCanvasSize={initCanvasSize}
                 scaleX={layeroutTemplete[Math.floor(surface / 2)].scale[0]}
                 scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
                 viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
                 viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
                 currColor={currColor}
-                size={size}
+                drawSize={drawSize}
                 currToothImageUrl={currToothImageUrl}
                 implantOpen={implantOpen}
                 filter={filter}
@@ -582,6 +650,7 @@ const EditCanvas = () => {
                 isViewOriginal={isViewOriginal}
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
                 deletePhoto={deletePhoto}
+                setIsImageLoad={setIsImageLoad}
               />
             );
           })}
