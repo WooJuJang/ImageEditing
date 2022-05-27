@@ -1,6 +1,6 @@
 import html2canvas from 'html2canvas';
-import React, { useEffect, useRef, useState } from 'react';
-import Canvas, { formatTool } from './Canvas';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import Canvas, { formatTool, historyType } from './Canvas';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
 import { debounce } from 'lodash';
@@ -132,6 +132,29 @@ const isBackgrounds: isBackgroundsType = {
   5: false,
 };
 let photoUrl = '';
+const initCanvasSize = {
+  width: 1200,
+  height: 750,
+};
+
+const calcCanvasSize = (surface: number) => {
+  if (window.innerWidth > 600 && window.innerWidth < 1200) {
+    return {
+      width: window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0],
+      height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+    };
+  } else {
+    return {
+      width: window.innerWidth < 600 ? 600 : initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+      height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+    };
+  }
+};
+export interface ICanvasHistory {
+  index: number;
+  imageUrl: string;
+  history: historyType[];
+}
 const EditCanvas = () => {
   const [colorOpen, setColorOpen] = useState(false);
   const [implantOpen, setImplantOpen] = useState<boolean>(false);
@@ -152,14 +175,17 @@ const EditCanvas = () => {
   const canvasContainer = useRef<HTMLDivElement>(null);
 
   const [canvasSize, setCanvasSize] = useState({
-    width: 1200,
-    height: 750,
+    width: calcCanvasSize(surface).width,
+    height: calcCanvasSize(surface).height,
   });
-  const initCanvasSize = {
-    width: 1200,
-    height: 750,
-  };
-
+  const [canvasHistory, setCanvasHistory] = useState<ICanvasHistory[]>([
+    { index: 0, imageUrl: '', history: [] },
+    { index: 1, imageUrl: '', history: [] },
+    { index: 2, imageUrl: '', history: [] },
+    { index: 3, imageUrl: '', history: [] },
+    { index: 4, imageUrl: '', history: [] },
+    { index: 5, imageUrl: '', history: [] },
+  ]);
   const [action, setAction] = useState<formatTool>('penTool');
   const [currentCanvasIndex, setCurrentCanvasIndex] = useState(0);
 
@@ -245,34 +271,49 @@ const EditCanvas = () => {
     }
   }, [isViewOriginal]);
 
-  const handleResize = debounce(() => {
+  const handleResize = debounce((surface: number) => {
     if (window.innerWidth > 600 && window.innerWidth < 1200) {
       setCanvasSize({
-        width: window.innerWidth / 2,
-        height: 750,
+        width: window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0],
+        height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
       });
     } else {
       setCanvasSize({
-        width: initCanvasSize.width / 2,
-        height: 750,
+        width:
+          window.innerWidth < 600
+            ? (initCanvasSize.width / 2) * layeroutTemplete[Math.floor(surface / 2)].view[0]
+            : initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+        height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
       });
     }
     setIsImageLoad(false);
   }, 100);
+  const debounceRequest = useCallback((value: number) => {
+    handleResize(value);
+  }, []);
+
   useEffect(() => {
     window.addEventListener('resize', () => {
       setIsImageLoad(true);
-      handleResize();
+      debounceRequest(surface);
     });
     return () => {
       window.removeEventListener('resize', () => {
         setIsImageLoad(true);
-        handleResize();
+        debounceRequest(surface);
       });
     };
-  }, []);
+  }, [surface]);
+
   return (
     <div style={{ marginTop: '10px' }}>
+      <button
+        onClick={() => {
+          canvasRefs.current[1].settingHistory(canvasHistory[0].history.at(-1));
+        }}
+      >
+        Test!!!!!!!
+      </button>
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
       {implantOpen && (
         <InsertImplants
@@ -574,10 +615,20 @@ const EditCanvas = () => {
             <button
               key={number}
               onClick={() => {
-                setCanvasSize({
-                  width: initCanvasSize.width * layeroutTemplete[Math.floor(number / 2)].size[0],
-                  height: initCanvasSize.height * layeroutTemplete[Math.floor(number / 2)].size[1],
-                });
+                if (window.innerWidth > 600 && window.innerWidth < 1200) {
+                  setCanvasSize({
+                    width: window.innerWidth * layeroutTemplete[Math.floor(number / 2)].view[0],
+                    height: initCanvasSize.height * layeroutTemplete[Math.floor(number / 2)].view[1],
+                  });
+                } else {
+                  setCanvasSize({
+                    width:
+                      window.innerWidth < 600
+                        ? (initCanvasSize.width / 2) * layeroutTemplete[Math.floor(number / 2)].view[0]
+                        : initCanvasSize.width * layeroutTemplete[Math.floor(number / 2)].view[0],
+                    height: initCanvasSize.height * layeroutTemplete[Math.floor(number / 2)].view[1],
+                  });
+                }
                 setSurface(number);
               }}
             >{`${number} Surface`}</button>
@@ -625,8 +676,8 @@ const EditCanvas = () => {
                   canvasRefs.current[i] = ref;
                 }}
                 view={[
-                  initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
-                  initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+                  canvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+                  canvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
                 ]}
                 canvasIndex={i}
                 action={action}
@@ -636,8 +687,10 @@ const EditCanvas = () => {
                 width={canvasSize.width}
                 height={canvasSize.height}
                 initCanvasSize={initCanvasSize}
-                scaleX={layeroutTemplete[Math.floor(surface / 2)].scale[0]}
-                scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
+                // scaleX={layeroutTemplete[Math.floor(surface / 2)].scale[0]}
+                // scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
+                scaleX={canvasSize.width * layeroutTemplete[Math.floor(surface / 2)].scale[0]}
+                scaleY={canvasSize.height * layeroutTemplete[Math.floor(surface / 2)].scale[1]}
                 viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
                 viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
                 currColor={currColor}
@@ -651,6 +704,8 @@ const EditCanvas = () => {
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
                 deletePhoto={deletePhoto}
                 setIsImageLoad={setIsImageLoad}
+                canvasHistory={canvasHistory}
+                setCanvasHistory={setCanvasHistory}
               />
             );
           })}
