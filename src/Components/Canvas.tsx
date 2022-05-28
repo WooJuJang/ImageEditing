@@ -1808,19 +1808,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       setIsLayerMove(true);
     },
     flip(x: number, y: number) {
-      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
-      findLayer(paper, 'overlay').scale(x, y, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
+      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(paper.view.bounds.center));
+      findLayer(paper, 'overlay').scale(x, y, new Point(paper.view.bounds.center));
     },
     zoom(x: number, y: number) {
       const scaleValue = initScaleX * x;
       if (scaleValue > 4 || scaleValue < 0.25) return;
       setInitScaleX(scaleValue);
-      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
-      findLayer(paper, 'overlay').scale(1 / x, 1 / y, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
+      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(paper.view.bounds.center));
+      findLayer(paper, 'overlay').scale(1 / x, 1 / y, new Point(paper.view.bounds.center));
     },
     rotate(r: number) {
-      findLayer(paper, 'sketch').view.matrix.rotate(r, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
-      findLayer(paper, 'overlay').rotate(-r, new Point(initCanvasSize.width / 2, initCanvasSize.height / 2));
+      findLayer(paper, 'sketch').view.matrix.rotate(r, new Point(paper.view.bounds.center));
+      findLayer(paper, 'overlay').rotate(-r, new Point(paper.view.bounds.center));
     },
     filter(filter: IFilter) {
       if (!canvasRef.current) {
