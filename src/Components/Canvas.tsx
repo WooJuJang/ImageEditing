@@ -1,7 +1,7 @@
 import Paper, { Group, Path, Point, PointText, Raster, Rectangle, Shape, Size } from 'paper';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ICursorList } from '../PaperTypes';
-import { IFilter, IImplantInput } from './EditCanvas';
+import { IFilter, IImplantInput, ICanvasHistory } from './EditCanvas';
 import PreviewModal from './PreviewModal';
 import TextModal from './TextModal';
 
@@ -73,6 +73,8 @@ type propsType = {
   isViewOriginal: boolean;
   deletePhoto: (value: number) => void;
   setCurrentCanvasIndex: (value: number) => void;
+  setCanvasHistory: (value: ICanvasHistory[]) => void;
+  canvasHistory: ICanvasHistory[];
 };
 export type refType = {
   // hello: () => void;
@@ -142,9 +144,9 @@ const hitOptions = {
   fill: true,
   tolerance: 4,
 };
-interface historyType {
+export interface historyType {
   isCrop: boolean;
-  history: string;
+  sketchHistory: string;
   background: string;
 }
 interface ICurrentScale {
@@ -154,7 +156,7 @@ interface ICurrentScale {
   distanceScaleWidth: number;
   distanceScaleHeight: number;
 }
-const undoHistoryArr: historyType[] = [];
+// const undoHistoryArr: historyType[] = [];
 let scaleWidth = 1;
 let scaleHeight = 1;
 let currentScale: ICurrentScale[] = [
@@ -198,10 +200,6 @@ const fitLayerInView = (paper: paper.PaperScope, width: number, height: number, 
   paper.project.view.viewSize = new Size(view[0], view[1]);
   // paper.project.view.viewSize = new Size(1200, 750);
   paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
-};
-
-const removeHistory = (sketchIndex: number) => {
-  undoHistoryArr.splice(sketchIndex + 1);
 };
 
 const moveItem = (item: paper.Item, event: paper.ToolEvent) => {
@@ -586,6 +584,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     isViewOriginal,
     deletePhoto,
     setCurrentCanvasIndex,
+    canvasHistory,
+    setCanvasHistory,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paper = useMemo(() => new Paper.PaperScope(), []);
@@ -638,6 +638,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     left: 0,
     top: 0,
   });
+  // const [undoHistoryArr, setUndoHistoryArr] = useState<historyType[]>([]);
+  const undoHistoryArr = useRef<historyType[]>([]);
   const scaleIndex = useRef<number>(0);
   const [isUndoRedo, setIsUndoRedo] = useState(false);
   const activateMoveTool = useCallback((event: paper.ToolEvent) => {
@@ -645,7 +647,14 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       Tools.moveTool.activate();
     }
   }, []);
+  const removeHistory = (sketchIndex: number) => {
+    // const tempArr:historyType[] = [...undoHistoryArr.current];
+    // tempArr.splice(sketchIndex + 1);
+    undoHistoryArr.current.splice(sketchIndex + 1);
 
+    // undoHistoryArr.current.push(tempArr)
+    //  setUndoHistoryArr(tempArr);
+  };
   const saveOriginal = () => {
     const back = findLayer(paper, 'background').exportJSON();
     const sketch = findLayer(paper, 'sketch').exportJSON();
@@ -777,6 +786,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       );
       background.addChild(raster);
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
+
       makeNewLayer(layers, false);
     };
   };
@@ -786,9 +796,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     const currChildren = layers.sketch.exportJSON();
     const currBackground = layers.background.exportJSON();
 
-    undoHistoryArr.push({ isCrop: crop, history: currChildren, background: currBackground });
+    // undoHistoryArr.push({ isCrop: crop, history: currChildren, background: currBackground });
     // setSketchIndex(undoHistoryArr.length - 1);
-    sketchIndex.current = undoHistoryArr.length - 1;
+    // setUndoHistoryArr((prev) => [...prev, { isCrop: crop, sketchHistory: currChildren, background: currBackground }]);
+    undoHistoryArr.current.push({ isCrop: crop, sketchHistory: currChildren, background: currBackground });
+    sketchIndex.current += 1;
   }, []);
   const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
     const imageBounds = layers.background.firstChild.bounds;
@@ -1664,6 +1676,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       sketch: sketch,
       overlay: overlay,
     });
+    return () => {
+      // if (!background.firstChild) return;
+
+      // const currChildren = sketch.exportJSON();
+      // const currBackground = background.exportJSON();
+
+      const tempCanvasHistory = [...canvasHistory];
+      // tempCanvasHistory[canvasIndex].imageUrl = currentImage;
+      // console.log(undoHistoryArr);
+      // tempCanvasHistory[canvasIndex].history = undoHistoryArr;
+      tempCanvasHistory[canvasIndex].history = undoHistoryArr.current;
+      setCanvasHistory(tempCanvasHistory);
+    };
   }, []);
 
   useEffect(() => {
@@ -1711,17 +1736,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       }
     }
   }, [isTextBoxOpen]);
-  // useEffect(() => {
-  //   if (!layers) return;
-  //   if (!isUndoRedo) return;
-  //   paper.project.activeLayer.removeChildren();
-  //   paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex.current].history);
-  //   layers.background.importJSON(undoHistoryArr[sketchIndex.current].background);
-  //   if (undoHistoryArr[sketchIndex.current].sketchScale) {
-  //     console.log('is Crop Step');
-  //   }
-  //   setIsUndoRedo(false);
-  // }, [sketchIndex]);
+
   useEffect(() => {
     if (!layers) return;
     if (currentImage) {
@@ -1735,8 +1750,25 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       settingBackground(paper, width, height, scaleX, scaleY, currentImage);
     } else {
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
-      setUnderlay(paper, layers, canvasIndex);
-      layers.sketch.visible = false;
+      if (canvasHistory[canvasIndex].history.length > 0) {
+        const lastHistory = canvasHistory[canvasIndex].history.at(-1);
+        if (lastHistory === undefined) return;
+
+        layers.background.importJSON(lastHistory.background);
+        layers.sketch.importJSON(lastHistory.sketchHistory);
+        layers.underlay.visible = false;
+        layers.sketch.visible = true;
+
+        layers.sketch.matrix.reset();
+        layers.sketch.translate(paper.view.bounds.center.subtract(new Point(600, 375)));
+        findLayer(paper, 'background').bounds.center = paper.view.bounds.center;
+        setOverlayGroup();
+        return;
+      } else {
+        layers.underlay.visible = true;
+        setUnderlay(paper, layers, canvasIndex);
+        layers.sketch.visible = false;
+      }
     }
 
     fitLayerInView(paper, width, height, scaleX, scaleY, view);
@@ -1756,25 +1788,25 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!undoHistoryArr || sketchIndex.current <= 0) return;
 
       // setIsUndoRedo(true);
-      if (undoHistoryArr[sketchIndex.current].isCrop) {
+      if (undoHistoryArr.current[sketchIndex.current].isCrop) {
         scaleIndex.current -= 1;
         // layers.sketch.applyMatrix = true;
       }
       sketchIndex.current -= 1;
       layers.sketch.removeChildren();
-      layers.sketch.importJSON(undoHistoryArr[sketchIndex.current].history);
-      layers.background.importJSON(undoHistoryArr[sketchIndex.current].background);
+      layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
+      layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
       // setSketchIndex(sketchIndex - 1);
       console.log('UNDO INDEX ', scaleIndex);
     },
     redoHistory() {
       if (!layers) return;
-      if (!undoHistoryArr || sketchIndex.current >= undoHistoryArr.length - 1) return;
+      if (!undoHistoryArr || sketchIndex.current >= undoHistoryArr.current.length - 1) return;
       sketchIndex.current += 1;
       paper.project.activeLayer.removeChildren();
-      paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex.current].history);
-      layers.background.importJSON(undoHistoryArr[sketchIndex.current].background);
-      if (undoHistoryArr[sketchIndex.current].isCrop) {
+      paper.project.activeLayer.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
+      layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
+      if (undoHistoryArr.current[sketchIndex.current].isCrop) {
         scaleIndex.current += 1;
       }
       // setIsUndoRedo(true);

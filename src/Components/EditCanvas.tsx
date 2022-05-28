@@ -1,6 +1,6 @@
 import html2canvas from 'html2canvas';
 import React, { useEffect, useRef, useState } from 'react';
-import Canvas, { formatTool } from './Canvas';
+import Canvas, { formatTool, historyType } from './Canvas';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
 
@@ -12,7 +12,11 @@ export interface IImplantInput {
   isCrown: boolean;
   isTooltip: boolean;
 }
-
+export interface ICanvasHistory {
+  index: number;
+  imageUrl: string;
+  history: historyType[];
+}
 export interface IFilter {
   Brightness: number;
   Saturation: number;
@@ -139,7 +143,14 @@ const EditCanvas = () => {
 
   const [action, setAction] = useState<formatTool>('penTool');
   const [currentCanvasIndex, setCurrentCanvasIndex] = useState(0);
-
+  const [canvasHistory, setCanvasHistory] = useState<ICanvasHistory[]>([
+    { index: 0, imageUrl: '', history: [] },
+    { index: 1, imageUrl: '', history: [] },
+    { index: 2, imageUrl: '', history: [] },
+    { index: 3, imageUrl: '', history: [] },
+    { index: 4, imageUrl: '', history: [] },
+    { index: 5, imageUrl: '', history: [] },
+  ]);
   const [implantInput, setImplantInput] = useState<IImplantInput>({
     crown: '',
     implantImage: '',
@@ -582,6 +593,8 @@ const EditCanvas = () => {
                 isViewOriginal={isViewOriginal}
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
                 deletePhoto={deletePhoto}
+                canvasHistory={canvasHistory}
+                setCanvasHistory={setCanvasHistory}
               />
             );
           })}
