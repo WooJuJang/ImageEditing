@@ -143,6 +143,7 @@ const hitOptions = {
   tolerance: 4,
 };
 interface historyType {
+  isCrop: boolean;
   history: string;
   background: string;
 }
@@ -156,7 +157,6 @@ interface ICurrentScale {
 const undoHistoryArr: historyType[] = [];
 let scaleWidth = 1;
 let scaleHeight = 1;
-let scaleIndex = 0;
 let currentScale: ICurrentScale[] = [
   {
     width: 1,
@@ -471,19 +471,6 @@ const createRasterEditField = (FigureType: string, currToothImageUrl: string) =>
   return { group: group, raster: raster };
 };
 
-//두 포인트 사이에 거리 구하기 함수
-const getDistance = (item: paper.Path) => {
-  const a = new Point(
-    item.segments[0].point.x / currentScale[scaleIndex].distanceScaleWidth,
-    item.segments[0].point.y / currentScale[scaleIndex].distanceScaleHeight
-  );
-  const b = new Point(
-    item.segments[1].point.x / currentScale[scaleIndex].distanceScaleWidth,
-    item.segments[1].point.y / currentScale[scaleIndex].distanceScaleHeight
-  );
-  return a.getDistance(b).toFixed(2);
-};
-
 const moveImplantInfo = (item: paper.Item, rotation: number) => {
   let dx;
   let dy;
@@ -578,78 +565,6 @@ const getSketchPoint = (point: paper.Point, layers: ILayers) => {
   return point0;
 };
 
-const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
-  const imageBounds = layers.background.firstChild.bounds;
-  itemBounds = item.bounds;
-
-  diffWidth = layers.background.firstChild.bounds.width / (layers.background.firstChild as paper.Raster).size.width;
-  diffHeight = layers.background.firstChild.bounds.height / (layers.background.firstChild as paper.Raster).size.height;
-  const x = layers.background.firstChild.bounds.x;
-  const y = layers.background.firstChild.bounds.y;
-
-  const bounds = new Rectangle({
-    from: new Point(item.bounds.topLeft.x / diffWidth - x / diffWidth, item.bounds.topLeft.y / diffHeight - y / diffHeight),
-    to: new Point(item.bounds.bottomRight.x / diffWidth - x / diffWidth, item.bounds.bottomRight.y / diffHeight - y / diffHeight),
-  });
-
-  const subRaster = (layers.background.firstChild as paper.Raster).getSubRaster(bounds);
-
-  subRaster.fitBounds(item.view.bounds);
-
-  if (subRaster.bounds.topLeft.x < 0) {
-    subRaster.bounds.topLeft.x = 0;
-  }
-  if (subRaster.bounds.topLeft.y < 0) {
-    subRaster.bounds.topLeft.y = 0;
-  }
-
-  sketchResize(itemBounds, layers, subRaster);
-
-  subRaster.locked = true;
-  layers.background.firstChild.remove();
-
-  isMakeCropField = false;
-};
-
-const sketchResize = (itemBounds: paper.Rectangle, layers: ILayers, subRaster: paper.Raster) => {
-  scaleIndex += 1;
-  scaleWidth = subRaster.bounds.width / itemBounds.width;
-  scaleHeight = subRaster.bounds.height / itemBounds.height;
-  translateX = subRaster.position.x - itemBounds.center.x;
-  translateY = subRaster.position.y - itemBounds.center.y;
-  layers.sketch.children.forEach((child: paper.Item) => {
-    if (child.data.type === 'history') {
-      child.translate(new Point(translateX, translateY));
-      child.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
-    }
-  });
-  currentScale[scaleIndex] = {
-    width: scaleWidth,
-    height: scaleHeight,
-    distanceScaleWidth: 1,
-    distanceScaleHeight: 1,
-  };
-
-  for (let i = 0; i <= scaleIndex; i++) {
-    currentScale[scaleIndex].distanceScaleWidth *= currentScale[i].width;
-    currentScale[scaleIndex].distanceScaleHeight *= currentScale[i].height;
-  }
-
-  layers.sketch.children.forEach((child: paper.Item) => {
-    if (child.data.type === 'history') {
-      child.children.forEach((historyChild: paper.Item) => {
-        if (historyChild.data.type === 'rulerGroup') {
-          historyChild.firstChild.strokeWidth = 4 * currentScale[scaleIndex].distanceScaleWidth;
-          historyChild.firstChild.dashArray = [
-            8 * currentScale[scaleIndex].distanceScaleWidth,
-            8 * currentScale[scaleIndex].distanceScaleWidth,
-          ];
-        }
-      });
-    }
-  });
-};
-
 const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const {
     view,
@@ -702,7 +617,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   });
   const [currentImage, setCurrentImage] = useState('');
   const [layers, setLayers] = useState<ILayers>();
-  const [sketchIndex, setSketchIndex] = useState(0);
+  // const [sketchIndex, setSketchIndex] = useState(0);
+  const sketchIndex = useRef<number>(0);
   const [r, g, b] = currColor.split(',');
   const fillColor = `${r},${g},${b},0.1)`;
   const [text, setText] = useState('');
@@ -722,7 +638,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     left: 0,
     top: 0,
   });
-
+  const scaleIndex = useRef<number>(0);
+  const [isUndoRedo, setIsUndoRedo] = useState(false);
   const activateMoveTool = useCallback((event: paper.ToolEvent) => {
     if (event.item) {
       Tools.moveTool.activate();
@@ -759,6 +676,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         });
       });
     });
+  };
+
+  //두 포인트 사이에 거리 구하기 함수
+  const getDistance = (item: paper.Path) => {
+    const a = new Point(
+      item.segments[0].point.x / currentScale[scaleIndex.current].distanceScaleWidth,
+      item.segments[0].point.y / currentScale[scaleIndex.current].distanceScaleHeight
+    );
+    const b = new Point(
+      item.segments[1].point.x / currentScale[scaleIndex.current].distanceScaleWidth,
+      item.segments[1].point.y / currentScale[scaleIndex.current].distanceScaleHeight
+    );
+    return a.getDistance(b).toFixed(2);
   };
   const setUnderlay = (paper: paper.PaperScope, layers: ILayers, canvasIndex: number) => {
     if (!layers) return;
@@ -847,20 +777,94 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       );
       background.addChild(raster);
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
-      makeNewLayer(layers);
+      makeNewLayer(layers, false);
     };
   };
 
-  const makeNewLayer = useCallback((layers: ILayers) => {
+  const makeNewLayer = useCallback((layers: ILayers, crop: boolean) => {
     if (!layers) return;
-
-    const currChildren = paper.project.activeLayer.exportJSON();
+    const currChildren = layers.sketch.exportJSON();
     const currBackground = layers.background.exportJSON();
 
-    undoHistoryArr.push({ history: currChildren, background: currBackground });
-
-    setSketchIndex(undoHistoryArr.length - 1);
+    undoHistoryArr.push({ isCrop: crop, history: currChildren, background: currBackground });
+    // setSketchIndex(undoHistoryArr.length - 1);
+    sketchIndex.current = undoHistoryArr.length - 1;
   }, []);
+  const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
+    const imageBounds = layers.background.firstChild.bounds;
+    itemBounds = item.bounds;
+
+    diffWidth = layers.background.firstChild.bounds.width / (layers.background.firstChild as paper.Raster).size.width;
+    diffHeight = layers.background.firstChild.bounds.height / (layers.background.firstChild as paper.Raster).size.height;
+    const x = layers.background.firstChild.bounds.x;
+    const y = layers.background.firstChild.bounds.y;
+
+    const bounds = new Rectangle({
+      from: new Point(item.bounds.topLeft.x / diffWidth - x / diffWidth, item.bounds.topLeft.y / diffHeight - y / diffHeight),
+      to: new Point(item.bounds.bottomRight.x / diffWidth - x / diffWidth, item.bounds.bottomRight.y / diffHeight - y / diffHeight),
+    });
+
+    const subRaster = (layers.background.firstChild as paper.Raster).getSubRaster(bounds);
+
+    subRaster.fitBounds(item.view.bounds);
+
+    if (subRaster.bounds.topLeft.x < 0) {
+      subRaster.bounds.topLeft.x = 0;
+    }
+    if (subRaster.bounds.topLeft.y < 0) {
+      subRaster.bounds.topLeft.y = 0;
+    }
+    subRaster.locked = true;
+    layers.background.firstChild.remove();
+    isMakeCropField = false;
+    sketchResize(itemBounds, layers, subRaster);
+  };
+  const sketchResize = (itemBounds: paper.Rectangle, layers: ILayers, subRaster: paper.Raster) => {
+    scaleIndex.current += 1;
+    scaleWidth = subRaster.bounds.width / itemBounds.width;
+    scaleHeight = subRaster.bounds.height / itemBounds.height;
+    translateX = subRaster.position.x - itemBounds.center.x;
+    translateY = subRaster.position.y - itemBounds.center.y;
+    // layers.sketch.children.forEach((child: paper.Item) => {
+    //   if (child.data.type === 'history') {
+    //     child.translate(new Point(translateX, translateY));
+    //     child.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
+    //   }
+    // });
+    layers.sketch.translate(new Point(translateX, translateY));
+    layers.sketch.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
+    layers.sketch.applyMatrix = true;
+
+    currentScale[scaleIndex.current] = {
+      width: scaleWidth,
+      height: scaleHeight,
+      distanceScaleWidth: 1,
+      distanceScaleHeight: 1,
+    };
+
+    for (let i = 0; i <= scaleIndex.current; i++) {
+      currentScale[scaleIndex.current].distanceScaleWidth *= currentScale[i].width;
+      currentScale[scaleIndex.current].distanceScaleHeight *= currentScale[i].height;
+    }
+
+    layers.sketch.children.forEach((child: paper.Item) => {
+      if (child.data.type === 'history') {
+        child.children.forEach((historyChild: paper.Item) => {
+          if (historyChild.data.type === 'rulerGroup') {
+            historyChild.firstChild.strokeWidth = 4 * currentScale[scaleIndex.current].distanceScaleWidth;
+            historyChild.firstChild.dashArray = [
+              8 * currentScale[scaleIndex.current].distanceScaleWidth,
+              8 * currentScale[scaleIndex.current].distanceScaleWidth,
+            ];
+          }
+        });
+      } else if (child.data.type === 'crop') {
+        child.remove();
+      }
+    });
+    makeNewLayer(layers, true);
+    console.log(scaleIndex, currentScale);
+  };
 
   const applyCurrentGroup = (item: paper.Item) => {
     if (!layers) return;
@@ -877,11 +881,12 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       layers.sketch.addChild(history);
     }
 
-    makeNewLayer(layers);
+    makeNewLayer(layers, false);
     Tools.moveTool.activate();
   };
 
   const makeImplant = (implantInput: IImplantInput) => {
+    console.log(scaleIndex.current);
     group = new Group();
     crownImage = new Group();
     implantImage = new Group();
@@ -965,12 +970,12 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       unitePath.remove();
       const implantGroup = implantInput.isTooltip ? new Group([group, pointText]) : new Group([group]);
 
-      implantGroup.scale(currentScale[scaleIndex].width, currentScale[scaleIndex].height);
+      implantGroup.scale(currentScale[scaleIndex.current].distanceScaleWidth, currentScale[scaleIndex.current].distanceScaleHeight);
       applyCurrentGroup(implantGroup);
     });
   };
   Tools.penTool.onMouseDown = (event: paper.ToolEvent): void => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
 
     paper.settings.handleSize = 0;
     path = new Path({
@@ -992,7 +997,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     applyCurrentGroup(path);
   };
   Tools.pathTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     paper.settings.handleSize = 10;
     path = new paper.Path({
       segments: [event.point],
@@ -1012,7 +1017,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     applyCurrentGroup(path);
   };
   Tools.lineTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     paper.settings.handleSize = 10;
     path = new Path.Line({
       from: new Point(event.point),
@@ -1033,7 +1038,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
 
   Tools.circleTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     paper.settings.handleSize = 10;
     shape = new Shape.Ellipse({
       point: [event.point.x, event.point.y],
@@ -1075,7 +1080,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     applyCurrentGroup(path);
   };
   Tools.rectangleTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     paper.settings.handleSize = 0;
     path = new Path.Rectangle({
       from: new Point(event.point),
@@ -1114,7 +1119,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
 
   Tools.textTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     setText('');
 
     shape = new Shape.Rectangle({
@@ -1246,6 +1251,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         if (child.data.type === 'crop') {
           crop(child, layers, paper);
           child.remove();
+          option = 'crop';
         }
       });
     } else if (event.item.data.type === 'overlayGroup') {
@@ -1443,8 +1449,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
   Tools.moveTool.onMouseUp = (event: paper.ToolEvent) => {
     if (!layers) return;
-    if (option === 'edit') return;
-    makeNewLayer(layers);
+    console.log(option);
+    if (option === 'edit' || option === 'crop') return;
+
+    makeNewLayer(layers, false);
   };
   Tools.partClearTool.onMouseDown = (event: paper.ToolEvent) => {
     paper.settings.handleSize = 0;
@@ -1483,11 +1491,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     });
 
     if (!layers) return;
-    makeNewLayer(layers);
+    makeNewLayer(layers, false);
   };
 
   Tools.toothImageTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     shape = new Shape.Rectangle({
       from: new Point(event.point),
       to: new Point(event.point),
@@ -1516,20 +1524,20 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     Tools.moveTool.activate();
   };
   Tools.rulerTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     if (!layers) return;
 
     path = new Path.Line({
       from: event.point,
       to: event.point,
       strokeColor: 'green',
-      strokeWidth: 4 * currentScale[scaleIndex].distanceScaleWidth,
+      strokeWidth: 4 * currentScale[scaleIndex.current].distanceScaleWidth,
       strokeCap: 'round',
       strokeJoin: 'round',
-      data: { type: 'ruler', scaleIndex: scaleIndex },
+      data: { type: 'ruler', scaleIndex: scaleIndex.current },
     });
     path.applyMatrix = true;
-    path.dashArray = [8 * currentScale[scaleIndex].distanceScaleWidth, 8 * currentScale[scaleIndex].distanceScaleWidth];
+    path.dashArray = [8 * currentScale[scaleIndex.current].distanceScaleWidth, 8 * currentScale[scaleIndex.current].distanceScaleWidth];
   };
   Tools.rulerTool.onMouseMove = (event: paper.ToolEvent) => {
     activateMoveTool(event);
@@ -1557,7 +1565,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       path.remove();
       pointText.remove();
     } else {
-      pointText.scale(currentScale[scaleIndex].distanceScaleWidth, currentScale[scaleIndex].distanceScaleHeight);
+      pointText.scale(currentScale[scaleIndex.current].distanceScaleWidth, currentScale[scaleIndex.current].distanceScaleHeight);
 
       group.addChild(path);
       group.addChild(pointText);
@@ -1568,7 +1576,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
 
   Tools.cropTool.onMouseDown = (event: paper.ToolEvent) => {
-    removeHistory(sketchIndex);
+    removeHistory(sketchIndex.current);
     layers?.sketch.children.forEach((child: paper.Item) => {
       if (child.data.type === 'crop') {
         child.remove();
@@ -1590,6 +1598,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       group.remove();
     }
     origin.remove();
+    console.log(paper.projects);
   };
 
   useEffect(() => {
@@ -1697,26 +1706,32 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           const { group, pointText }: IEditField = createEditField('PointText');
           applyCurrentGroup(new Group([pointText, group]));
         } else {
-          makeNewLayer(layers);
+          makeNewLayer(layers, false);
         }
       }
     }
   }, [isTextBoxOpen]);
-  useEffect(() => {
-    paper.project.activeLayer.removeChildren();
-    paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex]?.history);
-    layers?.background.importJSON(undoHistoryArr[sketchIndex]?.background);
-  }, [sketchIndex]);
+  // useEffect(() => {
+  //   if (!layers) return;
+  //   if (!isUndoRedo) return;
+  //   paper.project.activeLayer.removeChildren();
+  //   paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex.current].history);
+  //   layers.background.importJSON(undoHistoryArr[sketchIndex.current].background);
+  //   if (undoHistoryArr[sketchIndex.current].sketchScale) {
+  //     console.log('is Crop Step');
+  //   }
+  //   setIsUndoRedo(false);
+  // }, [sketchIndex]);
   useEffect(() => {
     if (!layers) return;
     if (currentImage) {
       layers.sketch.visible = isViewOriginal;
-      if (layers.sketch.hasChildren()) {
-        layers.sketch.removeChildren();
-        history.removeChildren();
+      // if (layers.sketch.hasChildren()) {
+      //   layers.sketch.removeChildren();
+      //   history.removeChildren();
 
-        undoHistoryArr.splice(0, undoHistoryArr.length);
-      }
+      //   undoHistoryArr.splice(0, undoHistoryArr.length);
+      // }
       settingBackground(paper, width, height, scaleX, scaleY, currentImage);
     } else {
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
@@ -1732,19 +1747,39 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     settingPhoto(url: string) {
       if (!layers) return;
       paper.activate();
-      settingBackground(paper, width, height, scaleX, scaleY, url);
+      // settingBackground(paper, width, height, scaleX, scaleY, url);
       setCurrentImage(url);
     },
 
     undoHistory() {
-      if (!undoHistoryArr || sketchIndex <= 0) return;
-      setSketchIndex(sketchIndex - 1);
       if (!layers) return;
+      if (!undoHistoryArr || sketchIndex.current <= 0) return;
+
+      // setIsUndoRedo(true);
+      if (undoHistoryArr[sketchIndex.current].isCrop) {
+        scaleIndex.current -= 1;
+        // layers.sketch.applyMatrix = true;
+      }
+      sketchIndex.current -= 1;
+      layers.sketch.removeChildren();
+      layers.sketch.importJSON(undoHistoryArr[sketchIndex.current].history);
+      layers.background.importJSON(undoHistoryArr[sketchIndex.current].background);
+      // setSketchIndex(sketchIndex - 1);
+      console.log('UNDO INDEX ', scaleIndex);
     },
     redoHistory() {
-      if (!undoHistoryArr || sketchIndex >= undoHistoryArr.length - 1) return;
-
-      setSketchIndex(sketchIndex + 1);
+      if (!layers) return;
+      if (!undoHistoryArr || sketchIndex.current >= undoHistoryArr.length - 1) return;
+      sketchIndex.current += 1;
+      paper.project.activeLayer.removeChildren();
+      paper.project.activeLayer.importJSON(undoHistoryArr[sketchIndex.current].history);
+      layers.background.importJSON(undoHistoryArr[sketchIndex.current].background);
+      if (undoHistoryArr[sketchIndex.current].isCrop) {
+        scaleIndex.current += 1;
+      }
+      // setIsUndoRedo(true);
+      // setSketchIndex(sketchIndex + 1);
+      console.log('REDO INDEX ', scaleIndex);
     },
     erase() {
       Tools.partClearTool.activate();
@@ -1753,12 +1788,12 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!layers) return;
       layers.sketch.removeChildren();
 
-      makeNewLayer(layers);
+      makeNewLayer(layers, false);
     },
     implantInput(implantInput: IImplantInput) {
       paper.activate();
       if (!layers) return;
-      removeHistory(sketchIndex);
+      removeHistory(sketchIndex.current);
       makeImplant(implantInput);
 
       Tools.moveTool.activate();
