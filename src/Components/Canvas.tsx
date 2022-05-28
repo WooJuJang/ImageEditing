@@ -1,5 +1,5 @@
 import Paper, { Group, Path, Point, PointText, Raster, Rectangle, Shape, Size } from 'paper';
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ICursorList } from '../PaperTypes';
 import { IFilter, IImplantInput, ICanvasHistory } from './EditCanvas';
 import PreviewModal from './PreviewModal';
@@ -772,7 +772,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const settingBackground = (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, url: string) => {
     if (!layers) return;
     paper.activate();
-    console.log('?????');
     const underlay = findLayer(paper, 'underlay');
     underlay.visible = false;
     const background = findLayer(paper, 'background');
@@ -1680,6 +1679,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       sketch: sketch,
       overlay: overlay,
     });
+
+    if (canvasHistory[canvasIndex].history.length > 0) {
+      undoHistoryArr.current = canvasHistory[canvasIndex].history;
+      sketch.visible = true;
+    }
     return () => {
       // if (!background.firstChild) return;
 
@@ -1687,11 +1691,13 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       // const currBackground = background.exportJSON();
 
       const tempCanvasHistory = [...canvasHistory];
+      const data = undoHistoryArr.current;
+      console.log(canvasIndex, undoHistoryArr.current);
       // tempCanvasHistory[canvasIndex].imageUrl = currentImage;
       // console.log(undoHistoryArr);
       // tempCanvasHistory[canvasIndex].history = undoHistoryArr;
 
-      tempCanvasHistory[canvasIndex].history = undoHistoryArr.current;
+      tempCanvasHistory[canvasIndex].history = data;
       setCanvasHistory(tempCanvasHistory);
     };
   }, []);
