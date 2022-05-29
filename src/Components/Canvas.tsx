@@ -555,7 +555,15 @@ const getSketchPoint = (point: paper.Point, layers: ILayers) => {
   const point0 = layers.sketch.matrix.inverseTransform(point);
   return point0;
 };
-
+/*
+##################################################################################################
+##################################################################################################
+##################################################################################################
+Canvas 컴포넌트
+##################################################################################################
+##################################################################################################
+##################################################################################################
+*/
 const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const {
     view,
@@ -633,6 +641,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     top: 0,
   });
   let isDrag = false;
+  const currBackgroundSize = useRef({
+    center: new Point(0, 0),
+    width: 1200,
+    height: 750,
+  });
   // const [undoHistoryArr, setUndoHistoryArr] = useState<historyType[]>([]);
   const undoHistoryArr = useRef<historyType[]>([]);
   const scaleIndex = useRef<number>(0);
@@ -744,32 +757,88 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
     beforeImage.addChild(number);
     beforeImage.addChild(message);
-    layers.underlay.bounds.center = new Point(paper.view.bounds.center.x / scaleX, paper.view.bounds.center.y / scaleY);
+    layers.underlay.bounds.center = new Point(initCanvasSize.width / 2, initCanvasSize.height / 2);
     beforeImage.locked = true;
   };
   const setOverlayGroup = () => {
-    if (!layers) return;
-    layers.overlay.matrix.reset();
-    layers.overlay.matrix.scale(1 / scaleX, 1 / scaleY);
-    layers.overlay.children.forEach((child: paper.Item) => {
-      if (child.data.type === 'overlayGroup') {
-        if (child.children.length === overlayKey.length) {
-          child.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
-        }
-      }
-    });
+    // if (!layers) return;
+    // layers.overlay.matrix.reset();
+    // layers.overlay.matrix.scale(1 / scaleX, 1 / scaleY);
+    // layers.overlay.children.forEach((child: paper.Item) => {
+    //   if (child.data.type === 'overlayGroup') {
+    //     if (child.children.length === overlayKey.length) {
+    //       child.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+    //     }
+    //   }
+    // });
+    findLayer(paper, 'overlay').matrix.reset();
+    findLayer(paper, 'overlay').matrix.scale(1 / scaleX, 1 / scaleY);
+    const overlayW = findLayer(paper, 'overlay').bounds.width;
+    const overlayH = findLayer(paper, 'overlay').bounds.height;
+    findLayer(paper, 'overlay').position = new Point(
+      paper.view.bounds.topRight.x - overlayW / 2,
+      paper.view.bounds.topRight.y + overlayH / 2
+    );
   };
-  const fitLayerInView = useCallback(
-    (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, view: number[]) => {
-      paper.project.view.matrix.reset();
-      // paper.project.view.viewSize = new Size(width, height);
-      paper.project.view.viewSize = new Size(view[0], view[1]);
-      // paper.project.view.viewSize = new Size(1200, 750);
-      paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
-    },
-    []
-  );
-  const settingBackground = (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, url: string) => {
+  const fitLayerInView = (paper: paper.PaperScope, width: number, height: number, scaleX: number, scaleY: number, view: number[]) => {
+    paper.project.view.matrix.reset();
+    // paper.project.view.viewSize = new Size(width, height);
+    const respoinvie = 900;
+    paper.project.view.viewSize = new Size(respoinvie, view[1]);
+
+    // paper.project.view.viewSize = new Size(1200, 750);
+    console.log(paper.view.bounds, currBackgroundSize.current);
+    const viewW = paper.view.bounds.width / currBackgroundSize.current.width;
+    const viewH = paper.view.bounds.height / currBackgroundSize.current.height;
+    if (currBackgroundSize.current.width > currBackgroundSize.current.height) {
+      paper.view.scale(viewW, new Point(0, 0));
+      const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
+      paper.view.matrix.translate(new Point(0, translateY));
+
+      findLayer(paper, 'overlay').matrix.reset();
+      findLayer(paper, 'overlay').matrix.scale(1 / viewX);
+
+      const overlayW = findLayer(paper, 'overlay').bounds.width;
+      const overlayH = findLayer(paper, 'overlay').bounds.height;
+      findLayer(paper, 'overlay').position = new Point(
+        paper.view.bounds.topRight.x - overlayW / 2,
+        paper.view.bounds.topRight.y + overlayH / 2
+      );
+    } else {
+      console.log(viewH);
+      paper.view.scale(viewH, new Point(0, 0));
+
+      // const translateX = viewX === viewY ? 0 : paper.view.bounds.center.x * viewY;
+      // paper.view.matrix.translate(new Point(-120, -75));
+
+      findLayer(paper, 'overlay').matrix.reset();
+      findLayer(paper, 'overlay').matrix.scale(1 / viewW);
+      const overlayW = findLayer(paper, 'overlay').bounds.width;
+      const overlayH = findLayer(paper, 'overlay').bounds.height;
+      findLayer(paper, 'overlay').position = new Point(
+        paper.view.bounds.topRight.x - overlayW / 2,
+        paper.view.bounds.topRight.y + overlayH / 2
+      );
+    }
+
+    // paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
+    // console.log(paper.view.bounds.center, currBackgroundSize.current.center);
+    // paper.view.scale(scale, new Point(0, 0));
+    // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
+    // // paper.view.matrix.translate(new Point(0, translateY));
+    // paper.view.matrix.translate(new Point(paper.view.bounds.center.x * viewY, 0));
+    // // paper.view.scale(scaleX, scaleY, paper.view.bounds.center);
+  };
+
+  const settingBackground = (
+    paper: paper.PaperScope,
+    width: number,
+    height: number,
+    scaleX: number,
+    scaleY: number,
+    url: string,
+    isSurface: boolean
+  ) => {
     if (!layers) return;
     paper.activate();
     const underlay = findLayer(paper, 'underlay');
@@ -780,9 +849,12 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     let raster = new Raster({
       crossOrigin: 'anonymous',
       source: url,
-      position: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
+      position: new Point(width / 2, height / 2),
       locked: true,
     });
+
+    // console.log(width, height, view[0], view[1], viewX, viewY, scaleX, scaleY, 750 * (viewY / viewX));
+
     raster.onLoad = () => {
       raster.fitBounds(
         new Rectangle({
@@ -790,13 +862,47 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           y: 0,
           // width: initCanvasSize.width,
           // height: initCanvasSize.height,
-          width: paper.view.bounds.width,
-          height: paper.view.bounds.height,
+          // width: paper.view.bounds.width,
+          // height: paper.view.bounds.height,
+          // width: view[0],
+          // height: view[1],
+          // width: 1200,
+          // height: 750 * (viewY / viewX),
+          width: 1200,
+          height: 750,
         })
       );
       background.addChild(raster);
+      currBackgroundSize.current.center = background.bounds.center;
+      currBackgroundSize.current.width = background.bounds.width;
+      currBackgroundSize.current.height = background.bounds.height;
+      // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
+      // paper.view.matrix.translate(new Point(0, translateY));
+      background.bounds.center = paper.view.bounds.center;
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
-      // makeNewLayer(layers, false);
+      if (!isSurface) makeNewLayer(layers, false);
+      // layers.sketch.matrix.reset();
+      // layers.sketch.translate(new Point(0, translateY));
+      // layers.overlay.translate(new Point(0, -translateY));
+      // background.addChild(raster);
+      // // fitLayerInView(paper, width, height, scaleX, scaleY, view);
+      // layers.sketch.matrix.reset();
+      // layers.sketch.visible = true;
+      // paper.project.view.matrix.reset();
+      // // paper.project.view.viewSize = new Size(width, height);
+      // paper.project.view.viewSize = new Size(view[0], view[1]);
+      // // paper.project.view.viewSize = new Size(1200, 750);
+      // paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
+
+      // console.log(paper.view.bounds.topLeft, layers.background.bounds.topLeft, layers.sketch.bounds.topLeft);
+      // // layers.sketch.translate(new Point(view[0] - width, view[1] - height));
+      // // layers.sketch.translate(new Point(0, layers.background.bounds.topLeft.y));
+      // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
+      // console.log(translateY);
+      // layers.sketch.translate(new Point(0, translateY));
+      // // layers.sketch.applyMatrix = true;
+      // // layers.sketch.visible = true;
+      // // makeNewLayer(layers, false);
     };
   };
 
@@ -810,6 +916,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     // setUndoHistoryArr((prev) => [...prev, { isCrop: crop, sketchHistory: currChildren, background: currBackground }]);
     undoHistoryArr.current.push({ isCrop: crop, sketchHistory: currChildren, background: currBackground });
     sketchIndex.current += 1;
+    console.log(canvasIndex, sketchIndex.current);
   };
   const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
     const imageBounds = layers.background.firstChild.bounds;
@@ -1626,6 +1733,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     paper.activate();
     paper.setup(canvas);
     const background = new paper.Layer();
+
     background.name = 'background';
     background.applyMatrix = false;
     const underlay = new paper.Layer();
@@ -1638,7 +1746,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     overlay.name = 'overlay';
     overlay.applyMatrix = false;
     overlay.visible = false;
-
     overlayGroup = new Group({
       data: { type: 'overlayGroup' },
     });
@@ -1653,6 +1760,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         overlay.firstChild.addChild(item);
         if (overlay.firstChild.children.length === overlayKey.length) {
           overlay.firstChild.position = new Point(width - iconSize.width * 2, iconSize.height / 2);
+          setOverlayGroup();
         }
       });
     });
@@ -1662,7 +1770,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     paper.project.addLayer(sketch);
     paper.project.addLayer(overlay);
     sketch.activate();
-
     history = new Group({
       data: { type: 'history' },
     });
@@ -1680,24 +1787,25 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       overlay: overlay,
     });
 
-    if (canvasHistory[canvasIndex].history.length > 0) {
+    if (canvasHistory[canvasIndex].imageUrl) {
       undoHistoryArr.current = canvasHistory[canvasIndex].history;
+      sketchIndex.current = canvasHistory[canvasIndex].history.length - 1;
+
+      background.importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].background);
+      sketch.importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].sketchHistory);
+
+      currentImage.current = canvasHistory[canvasIndex].imageUrl;
+      underlay.visible = false;
       sketch.visible = true;
     }
     return () => {
-      // if (!background.firstChild) return;
-
-      // const currChildren = sketch.exportJSON();
-      // const currBackground = background.exportJSON();
-
+      if (!canvasHistory[canvasIndex].imageUrl) return;
       const tempCanvasHistory = [...canvasHistory];
       const data = undoHistoryArr.current;
-      console.log(canvasIndex, undoHistoryArr.current);
-      // tempCanvasHistory[canvasIndex].imageUrl = currentImage;
-      // console.log(undoHistoryArr);
-      // tempCanvasHistory[canvasIndex].history = undoHistoryArr;
 
+      tempCanvasHistory[canvasIndex].imageUrl = currentImage.current;
       tempCanvasHistory[canvasIndex].history = data;
+
       setCanvasHistory(tempCanvasHistory);
     };
   }, []);
@@ -1763,51 +1871,67 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
       //   undoHistoryArr.splice(0, undoHistoryArr.length);
       // }
-      console.log(canvasIndex, undoHistoryArr.current);
-      settingBackground(paper, width, height, scaleX, scaleY, currentImage.current);
+      if (canvasIndex === 3) {
+        console.log(paper.projects, '222222');
+      }
+
+      settingBackground(paper, width, height, scaleX, scaleY, currentImage.current, true);
+      fitLayerInView(paper, width, height, scaleX, scaleY, view);
     } else {
       fitLayerInView(paper, width, height, scaleX, scaleY, view);
-      if (canvasHistory[canvasIndex].history.length > 0) {
-        const lastHistory = canvasHistory[canvasIndex].history.at(-1);
-        if (lastHistory === undefined) {
-          console.log('no hisotyr');
-          return;
-        }
-        layers.background.importJSON(lastHistory.background);
-        layers.sketch.importJSON(lastHistory.sketchHistory);
-        layers.underlay.visible = false;
-        layers.sketch.visible = true;
-        // layers.sketch.matrix.reset();
-        // layers.sketch.translate(paper.view.bounds.center.subtract(new Point(600, 375)));
-        findLayer(paper, 'background').bounds.center = paper.view.bounds.center;
-        setOverlayGroup();
-        // return;
-      } else {
-        console.log('2222');
-        layers.underlay.visible = true;
-        setUnderlay(paper, layers, canvasIndex);
-        layers.sketch.visible = false;
-      }
-    }
+      // if (canvasHistory[canvasIndex].history.length > 0) {
+      // if (canvasHistory[canvasIndex].imageUrl) {
+      //   const lastHistory = canvasHistory[canvasIndex].history.at(-1);
+      //   if (lastHistory === undefined) {
+      //     console.log('no hisotyr');
+      //     return;
+      //   }
+      //   layers.background.importJSON(lastHistory.background);
+      //   layers.sketch.importJSON(lastHistory.sketchHistory);
+      //   layers.underlay.visible = false;
+      //   layers.sketch.visible = true;
+      //   // layers.sketch.matrix.reset();
+      //   // layers.sketch.translate(paper.view.bounds.center.subtract(new Point(600, 375)));
+      //   findLayer(paper, 'background').bounds.center = paper.view.bounds.center;
+      //   setOverlayGroup();
+      //   currentImage.current = canvasHistory[canvasIndex].imageUrl;
+      //   settingBackground(paper, width, height, scaleX, scaleY, currentImage.current);
+      //   // return;
+      // } else {
+      //   layers.underlay.visible = true;
+      //   setUnderlay(paper, layers, canvasIndex);
+      //   layers.sketch.visible = false;
+      // }
 
-    fitLayerInView(paper, width, height, scaleX, scaleY, view);
-    setOverlayGroup();
+      layers.underlay.visible = true;
+      setUnderlay(paper, layers, canvasIndex);
+      layers.sketch.visible = false;
+
+      // fitLayerInView(paper, width, height, scaleX, scaleY, view);
+
+      fitLayerInView(paper, width, height, scaleX, scaleY, view);
+    }
   }, [layers, surface]);
 
   useImperativeHandle(ref, () => ({
     settingPhoto(url: string) {
       if (!layers) return;
       paper.activate();
-      settingBackground(paper, width, height, scaleX, scaleY, url);
-      makeNewLayer(layers, false);
+
+      settingBackground(paper, width, height, scaleX, scaleY, url, false);
+
       // setCurrentImage(url);
       currentImage.current = url;
+
+      const tempCanvasHistory = [...canvasHistory];
+      tempCanvasHistory[canvasIndex].imageUrl = url;
+
+      setCanvasHistory(tempCanvasHistory);
       layers.sketch.visible = true;
     },
 
     undoHistory() {
       if (!layers) return;
-      console.log(layers.sketch.visible);
       if (!undoHistoryArr.current || sketchIndex.current <= 0) return;
 
       // setIsUndoRedo(true);
