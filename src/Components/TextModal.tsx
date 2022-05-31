@@ -1,5 +1,4 @@
-import { isAbsolute } from 'path';
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 
 interface ICanvasRect {
   x: number;
@@ -15,10 +14,9 @@ interface IProp {
   text: string;
   setText: (value: string) => void;
   canvas: ICanvasRect;
-  canvasIndex: number;
 }
 
-const TextModal = ({ open, setOpen, x, y, text, setText, canvas, canvasIndex }: IProp) => {
+const TextModal = ({ open, setOpen, x, y, text, setText }: IProp) => {
   //ref가 없는 곳에 클릭 시 창 닫히는 함수
   const ref = useRef<HTMLDivElement>(null);
 
@@ -48,10 +46,12 @@ const TextModal = ({ open, setOpen, x, y, text, setText, canvas, canvasIndex }: 
             justifyContent: 'center',
             alignItems: 'center',
             position: 'absolute',
-            top: canvas.y,
-            left: canvas.x,
-            width: canvas.width,
-            height: canvas.height,
+
+            top: 0,
+            left: 0,
+
+            width: '100vw',
+            height: '100vh',
           }}
         >
           <div

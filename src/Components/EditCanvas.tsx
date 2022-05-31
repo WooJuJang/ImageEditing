@@ -1,9 +1,9 @@
 import html2canvas from 'html2canvas';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Canvas, { formatTool, historyType } from './Canvas';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
-
+import { throttle } from 'lodash';
 export interface IImplantInput {
   crown: string;
   implantImage: string;
@@ -31,24 +31,40 @@ const layeroutTemplete = [
     size: [1, 1],
     scale: [1, 1],
     view: [1, 1],
+    templates: {
+      columns: '100%',
+      rows: '100%',
+    },
   },
   {
     name: '2x1',
     size: [0.5, 0.5],
     scale: [0.5, 0.5],
     view: [0.5, 1],
+    templates: {
+      columns: '50% 50%',
+      rows: '100%',
+    },
   },
   {
     name: '2x2',
     size: [0.5, 0.5],
     scale: [0.5, 0.5],
     view: [0.5, 0.5],
+    templates: {
+      columns: '50% 50%',
+      rows: '50% 50%',
+    },
   },
   {
     name: '3x2',
     size: [0.3333, 0.3333],
     scale: [0.3333, 0.3333],
     view: [0.3333, 0.5],
+    templates: {
+      columns: '33.33% 33.33% 33.33%',
+      rows: '50% 50%',
+    },
   },
 ];
 const filterKey = ['Brightness', 'Saturation', 'Contranst', 'HueRotate', 'Inversion'] as const;
@@ -119,6 +135,23 @@ const isBackgrounds: isBackgroundsType = {
   5: false,
 };
 let photoUrl = '';
+const initCanvasSize = {
+  width: 1200,
+  height: 750,
+};
+const calcCanvasSize = (surface: number) => {
+  if (window.innerWidth >= 600 && window.innerWidth <= 1200) {
+    return {
+      width: window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0],
+      height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+    };
+  } else {
+    return {
+      width: window.innerWidth < 600 ? 600 : initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+      height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+    };
+  }
+};
 const EditCanvas = () => {
   const [colorOpen, setColorOpen] = useState(false);
   const [implantOpen, setImplantOpen] = useState<boolean>(false);
@@ -127,6 +160,7 @@ const EditCanvas = () => {
   const [isToothImage, setIsToothImage] = useState(false);
   const [size, setSize] = useState(1);
   const [isViewOriginal, setIsViewOriginal] = useState(true);
+  const [isImageLoad, setIsImageLoad] = useState(false);
 
   const [surface, setSurface] = useState(1);
   const [currToothImageUrl, setCurrToothImageUrl] = useState(toothImageUrls.ceramic);
@@ -136,14 +170,22 @@ const EditCanvas = () => {
   const canvasContainer = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<any[]>([]);
 
-  const initCanvasSize = {
-    width: 1200,
-    height: 750,
-  };
-
+  const [canvasSize, setCanvasSize] = useState({
+    width: calcCanvasSize(surface).width,
+    height: calcCanvasSize(surface).height,
+  });
   const [action, setAction] = useState<formatTool>('penTool');
   const [currentCanvasIndex, setCurrentCanvasIndex] = useState(0);
-  const [canvasHistory, setCanvasHistory] = useState<ICanvasHistory[]>([
+  // const [canvasHistory, setCanvasHistory] = useState<ICanvasHistory[]>([
+  //   { index: 0, imageUrl: '', history: [] },
+  //   { index: 1, imageUrl: '', history: [] },
+  //   { index: 2, imageUrl: '', history: [] },
+  //   { index: 3, imageUrl: '', history: [] },
+  //   { index: 4, imageUrl: '', history: [] },
+  //   { index: 5, imageUrl: '', history: [] },
+  // ]);
+
+  const canvasHistory = useRef<ICanvasHistory[]>([
     { index: 0, imageUrl: '', history: [] },
     { index: 1, imageUrl: '', history: [] },
     { index: 2, imageUrl: '', history: [] },
@@ -151,6 +193,7 @@ const EditCanvas = () => {
     { index: 4, imageUrl: '', history: [] },
     { index: 5, imageUrl: '', history: [] },
   ]);
+
   const [implantInput, setImplantInput] = useState<IImplantInput>({
     crown: '',
     implantImage: '',
@@ -159,7 +202,6 @@ const EditCanvas = () => {
     isCrown: true,
     isTooltip: true,
   });
-
   const [filter, setFilter] = useState<IFilter>({
     Brightness: 0,
     Saturation: 0,
@@ -175,7 +217,6 @@ const EditCanvas = () => {
     HueRotate: false,
     Inversion: false,
   });
-
   const filterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFilter((prev) => ({
@@ -220,21 +261,67 @@ const EditCanvas = () => {
     document.body.removeChild(link);
   };
 
+  const handleResize = useCallback((surface: number, initCanvasSize: any) => {
+    if (window.innerWidth >= 600 && window.innerWidth <= 1200) {
+      const w = window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0];
+      const h = initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1];
+      console.log(w);
+      setCanvasSize({
+        width: w,
+        height: h,
+      });
+    } else {
+      setCanvasSize({
+        width:
+          window.innerWidth < 600
+            ? (initCanvasSize.width / 2) * layeroutTemplete[Math.floor(surface / 2)].view[0]
+            : initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+        height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
+      });
+    }
+    setIsImageLoad(false);
+  }, []);
+
+  useEffect(() => {
+    console.log(surface, calcCanvasSize(surface).width);
+    setCanvasSize({
+      width: calcCanvasSize(surface).width,
+      height: calcCanvasSize(surface).height,
+    });
+
+    window.addEventListener(
+      'resize',
+      throttle(() => {
+        setIsImageLoad(true);
+        handleResize(surface, initCanvasSize);
+      }, 500)
+    );
+    return () => {
+      window.removeEventListener('resize', () => {
+        handleResize(surface, initCanvasSize);
+      });
+    };
+  }, [surface, handleResize]);
+
+  useEffect(() => {
+    console.log(canvasSize.width);
+  }, [canvasSize.width]);
   useEffect(() => {
     canvasRefs.current[currentCanvasIndex].filter(filter);
-  }, [filter.Brightness, filter.Saturation, filter.Contranst, filter.Inversion, filter.HueRotate]);
+  }, [currentCanvasIndex, filter, filter.Brightness, filter.Saturation, filter.Contranst, filter.Inversion, filter.HueRotate]);
   useEffect(() => {
-    if (!isImplantInput) return;
+    if (!isImplantInput || !implantInput.implantImage) return;
     canvasRefs.current[currentCanvasIndex].implantInput(implantInput);
-  }, [isImplantInput]);
+  }, [isImplantInput, currentCanvasIndex, implantInput]);
   useEffect(() => {
     for (let i = 0; i < surface; i++) {
       canvasRefs.current[i].viewOriginal(isViewOriginal);
     }
-  }, [isViewOriginal]);
+  }, [isViewOriginal, surface]);
 
   return (
     <div style={{ marginTop: '10px', width: '1200px' }}>
+      {isImageLoad && <div style={{ backgroundColor: 'white', width: '100vw', height: '100vh' }}> Image Load</div>}
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
       {implantOpen && (
         <InsertImplants
@@ -556,11 +643,24 @@ const EditCanvas = () => {
             <button onClick={SaveToPc}>Save to Pc</button>
           </div>
         </div>
+
         <div
           className="canvas-container"
           id="canvas"
           ref={canvasContainer}
-          style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', width: '100%' }}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            width: canvasSize.width * (surface > 3 ? surface / 2 : surface),
+          }}
+          // style={{
+          //   display: 'grid',
+          //   gridTemplateColumns: layeroutTemplete[Math.floor(surface / 2)].templates.columns,
+          //   gridTemplateRows: layeroutTemplete[Math.floor(surface / 2)].templates.rows,
+          //   minWidth: '600px',
+          //   maxWidth: '1200px',
+          // }}
         >
           {new Array(surface).fill('').map((el, i) => {
             return (
@@ -581,8 +681,10 @@ const EditCanvas = () => {
                 initCanvasSize={initCanvasSize}
                 scaleX={layeroutTemplete[Math.floor(surface / 2)].scale[0]}
                 scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
-                viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
-                viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
+                // viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
+                // viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
+                viewX={initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0]}
+                viewY={initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1]}
                 currColor={currColor}
                 size={size}
                 currToothImageUrl={currToothImageUrl}
@@ -593,8 +695,11 @@ const EditCanvas = () => {
                 isViewOriginal={isViewOriginal}
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
                 deletePhoto={deletePhoto}
-                canvasHistory={canvasHistory}
-                setCanvasHistory={setCanvasHistory}
+                canvasHistory={canvasHistory.current}
+                // setCanvasHistory={setCanvasHistory}
+
+                canvasSize={canvasSize}
+                setImplantInput={setImplantInput}
               />
             );
           })}
