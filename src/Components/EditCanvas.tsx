@@ -304,9 +304,6 @@ const EditCanvas = () => {
   }, [surface, handleResize]);
 
   useEffect(() => {
-    console.log(canvasSize.width);
-  }, [canvasSize.width]);
-  useEffect(() => {
     canvasRefs.current[currentCanvasIndex].filter(filter);
   }, [currentCanvasIndex, filter, filter.Brightness, filter.Saturation, filter.Contranst, filter.Inversion, filter.HueRotate]);
   useEffect(() => {

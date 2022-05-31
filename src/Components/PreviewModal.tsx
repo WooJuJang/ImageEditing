@@ -15,15 +15,14 @@ const PreviewModal = (props: IProps) => {
   const imageParentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [isReset, setIsReset] = useState(false);
-  const [scaleXY, setScaleXY] = useState({
-    x: 1,
-    y: 1,
-  });
+  // const [scaleXY, setScaleXY] = useState({
+  //   x: 1,
+  //   y: 1,
+  // });
   const [btnPosition, setBtnPosition] = useState({
     x: 0,
     y: 0,
   });
-
   const onClose = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) setIsPreview(false);
   };
@@ -38,18 +37,18 @@ const PreviewModal = (props: IProps) => {
     setIsReset(true);
     setScale(1);
   };
-  useEffect(() => {
-    if (!imageParentRef.current) return;
+  // useEffect(() => {
+  //   if (!imageParentRef.current) return;
 
-    // console.log(imageParentRef.current.getBoundingClientRect().width);
-  }, [imageParentRef?.current?.getBoundingClientRect().width]);
+  //   // console.log(imageParentRef.current.getBoundingClientRect().width);
+  // }, [imageParentRef?.current?.getBoundingClientRect().width]);
   useEffect(() => {
     if (!imageRef.current || !imageParentRef.current) return;
     setBtnPosition({
       x: imageRef.current.getBoundingClientRect().right - 220,
       y: imageRef.current.getBoundingClientRect().top + 20,
     });
-    setScaleXY({ x: imageRef.current.getBoundingClientRect().width / width, y: imageRef.current.getBoundingClientRect().height / height });
+    // setScaleXY({ x: imageRef.current.getBoundingClientRect().width / width, y: imageRef.current.getBoundingClientRect().height / height });
   }, [url, width, height]);
 
   return (

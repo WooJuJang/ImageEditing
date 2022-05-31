@@ -1,6 +1,5 @@
 import Paper, { Group, Path, Point, PointText, Raster, Rectangle, Shape, Size, Layer } from 'paper';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { RefObject } from 'react';
 import { ICursorList } from '../PaperTypes';
 import { IFilter, IImplantInput, ICanvasHistory } from './EditCanvas';
 import PreviewModal from './PreviewModal';
@@ -135,12 +134,6 @@ let unitePath: paper.PathItem;
 let ctx: CanvasRenderingContext2D | null;
 // let initScaleX = 1;
 
-const hitOptions = {
-  segments: true,
-  stroke: true,
-  fill: true,
-  tolerance: 4,
-};
 export interface historyType {
   isCrop: boolean;
   sketchHistory: string;
@@ -814,11 +807,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const fitLayerInView = useCallback((paper: paper.PaperScope, viewY: number, canvasSizeWidth: number, canvasSizeHeight: number) => {
     paper.project.view.matrix.reset();
 
-    // paper.project.view.viewSize = new Size(width, height);
-    // const respoinvie = canvasSize.width;
-    const respoinvie = canvasSizeWidth;
     paper.project.view.viewSize = new Size(canvasSizeWidth, viewY);
-    // paper.project.view.viewSize = new Size(1200, 750);
     if (!currentImage.current) {
       currBackgroundSize.current.center = new Point(canvasSizeWidth / 2, canvasSizeHeight / 2);
       currBackgroundSize.current.width = canvasSizeWidth;
@@ -831,7 +820,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
     const viewW = paper.view.bounds.width / currBackgroundSize.current.width;
     const viewH = paper.view.bounds.height / currBackgroundSize.current.height;
-
+    console.log(canvasIndex, viewW, viewH);
     if (currBackgroundSize.current.width > currBackgroundSize.current.height) {
       paper.view.scale(viewW, new Point(0, 0));
       textBoxScale = paper.view.bounds.center.subtract(currBackgroundSize.current.center);
@@ -851,11 +840,13 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         paper.view.bounds.topRight.y + overlayH / 2
       );
     } else {
+      paper.view.scale(viewH, new Point(0, 0));
       if (paper.view.bounds.width < currBackgroundSize.current.width) {
-        paper.view.scale(viewW, viewH, new Point(0, 0));
-      } else {
-        paper.view.scale(viewH, new Point(0, 0));
+        paper.view.matrix.reset();
+        paper.view.scale(viewW, new Point(0, 0));
       }
+      console.log(canvasIndex, paper.view.bounds.width, currBackgroundSize.current.width);
+
       // const translateX = viewX === viewY ? 0 : paper.view.bounds.center.x * viewY;
       // paper.view.matrix.translate(new Point(-120, -75));
       paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
@@ -883,81 +874,85 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       paper: paper.PaperScope,
       width: number,
       height: number,
-      scaleX: number,
-      scaleY: number,
+      // scaleX: number,
+      // scaleY: number,
       url: string,
       isSurface: boolean,
       canvasSizeWidth: number,
       canvasSizeHeight: number,
       viewYSize: number
     ) => {
-      // if (!layers) return;
-
-      paper.activate();
-      const underlay = findLayer(paper, 'underlay');
-      underlay.visible = false;
-      const background = findLayer(paper, 'background');
-      background.removeChildren();
-
-      let raster = new Raster({
-        crossOrigin: 'anonymous',
-        source: url,
-        position: new Point(width / 2, height / 2),
-        locked: true,
-      });
-
-      raster.onLoad = () => {
-        raster.fitBounds(
-          new Rectangle({
-            x: 0,
-            y: 0,
-            // width: initCanvasSize.width,
-            // height: initCanvasSize.height,
-            // width: paper.view.bounds.width,
-            // height: paper.view.bounds.height,
-            // width: view[0],
-            // height: view[1],
-            // width: 1200,
-            // height: 750 * (viewY / viewX),
-            width: 1200,
-            height: 750,
-          })
-        );
-        background.addChild(raster);
-        currBackgroundSize.current.center = background.bounds.center;
-        currBackgroundSize.current.width = background.bounds.width;
-        currBackgroundSize.current.height = background.bounds.height;
-        // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
-        // paper.view.matrix.translate(new Point(0, translateY));
-
-        // background.bounds.center = paper.view.bounds.center;
+      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
         fitLayerInView(paper, viewYSize, canvasSizeWidth, canvasSizeHeight);
-        if (!isSurface) {
-          makeNewLayer(false);
-        }
-        // layers.sketch.matrix.reset();
-        // layers.sketch.translate(new Point(0, translateY));
-        // layers.overlay.translate(new Point(0, -translateY));
-        // background.addChild(raster);
-        // // fitLayerInView(paper, width, height, scaleX, scaleY, view);
-        // layers.sketch.matrix.reset();
-        // layers.sketch.visible = true;
-        // paper.project.view.matrix.reset();
-        // // paper.project.view.viewSize = new Size(width, height);
-        // paper.project.view.viewSize = new Size(view[0], view[1]);
-        // // paper.project.view.viewSize = new Size(1200, 750);
-        // paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
+      } else {
+        paper.activate();
+        const underlay = findLayer(paper, 'underlay');
+        underlay.visible = false;
+        const background = findLayer(paper, 'background');
+        background.removeChildren();
 
-        // console.log(paper.view.bounds.topLeft, layers.background.bounds.topLeft, layers.sketch.bounds.topLeft);
-        // // layers.sketch.translate(new Point(view[0] - width, view[1] - height));
-        // // layers.sketch.translate(new Point(0, layers.background.bounds.topLeft.y));
-        // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
-        // console.log(translateY);
-        // layers.sketch.translate(new Point(0, translateY));
-        // // layers.sketch.applyMatrix = true;
-        // // layers.sketch.visible = true;
-        // // makeNewLayer(layers, false);
-      };
+        let raster = new Raster({
+          crossOrigin: 'anonymous',
+          source: url,
+          position: new Point(width / 2, height / 2),
+          locked: true,
+        });
+
+        raster.onLoad = () => {
+          raster.fitBounds(
+            new Rectangle({
+              x: 0,
+              y: 0,
+              // width: initCanvasSize.width,
+              // height: initCanvasSize.height,
+              // width: paper.view.bounds.width,
+              // height: paper.view.bounds.height,
+              // width: view[0],
+              // height: view[1],
+              // width: 1200,
+              // height: 750 * (viewY / viewX),
+              width: 1200,
+              height: 750,
+            })
+          );
+          background.addChild(raster);
+
+          currBackgroundSize.current.center = background.bounds.center;
+          currBackgroundSize.current.width = background.bounds.width;
+          currBackgroundSize.current.height = background.bounds.height;
+          // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
+          // paper.view.matrix.translate(new Point(0, translateY));
+
+          // background.bounds.center = paper.view.bounds.center;
+
+          fitLayerInView(paper, viewYSize, canvasSizeWidth, canvasSizeHeight);
+          if (!isSurface) {
+            makeNewLayer(false);
+          }
+          // layers.sketch.matrix.reset();
+          // layers.sketch.translate(new Point(0, translateY));
+          // layers.overlay.translate(new Point(0, -translateY));
+          // background.addChild(raster);
+          // // fitLayerInView(paper, width, height, scaleX, scaleY, view);
+          // layers.sketch.matrix.reset();
+          // layers.sketch.visible = true;
+          // paper.project.view.matrix.reset();
+          // // paper.project.view.viewSize = new Size(width, height);
+          // paper.project.view.viewSize = new Size(view[0], view[1]);
+          // // paper.project.view.viewSize = new Size(1200, 750);
+          // paper.project.view.scale(scaleX, scaleY, new Point(0, 0));
+
+          // console.log(paper.view.bounds.topLeft, layers.background.bounds.topLeft, layers.sketch.bounds.topLeft);
+          // // layers.sketch.translate(new Point(view[0] - width, view[1] - height));
+          // // layers.sketch.translate(new Point(0, layers.background.bounds.topLeft.y));
+          // const translateY = viewX === viewY ? 0 : paper.view.bounds.center.y * viewX;
+          // console.log(translateY);
+          // layers.sketch.translate(new Point(0, translateY));
+          // // layers.sketch.applyMatrix = true;
+          // // layers.sketch.visible = true;
+          // // makeNewLayer(layers, false);
+        };
+      }
     },
     [fitLayerInView, makeNewLayer]
   );
@@ -1008,8 +1003,9 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
     // layers.sketch.translate(new Point(translateX, translateY));
     // layers.sketch.scale(scaleWidth, scaleHeight, new Point(subRaster.view.bounds.width / 2, subRaster.view.bounds.height / 2));
-    layers.sketch.scale(scaleWidth, scaleHeight, new Point(0, 0));
     layers.sketch.translate(temp);
+    layers.sketch.scale(scaleWidth, scaleHeight, new Point(paper.view.center));
+
     layers.sketch.applyMatrix = true;
 
     currentScale[scaleIndex.current] = {
@@ -1931,7 +1927,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       findLayer(paper, 'sketch').visible = isViewOriginal;
 
       paper.view.matrix.reset();
-      settingBackground(paper, width, height, scaleX, scaleY, currentImage.current, true, canvasSize.width, canvasSize.height, viewY);
+      settingBackground(paper, width, height, currentImage.current, true, canvasSize.width, canvasSize.height, viewY);
     } else {
       findLayer(paper, 'underlay').visible = true;
       findLayer(paper, 'sketch').visible = false;
@@ -1942,8 +1938,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   }, [
     width,
     height,
-    scaleX,
-    scaleY,
     viewY,
     fitLayerInView,
     canvasSize.width,
@@ -2044,7 +2038,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!layers) return;
       paper.activate();
 
-      settingBackground(paper, width, height, scaleX, scaleY, url, false, canvasSize.width, canvasSize.height, viewY);
+      settingBackground(paper, width, height, url, false, canvasSize.width, canvasSize.height, viewY);
 
       // setCurrentImage(url);
       currentImage.current = url;
