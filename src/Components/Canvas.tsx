@@ -555,7 +555,6 @@ const setUnderlay = (paper: paper.PaperScope, initCanvasSize: IInitCanvasSize, c
 };
 const importOverlaySVG = (paper: paper.PaperScope) => {
   return new Promise((resolve) => {
-    console.log('2');
     overlayKey.forEach((key, index) => {
       const tempItem = new Group();
       tempItem.data = 'aaaaaa';
@@ -564,8 +563,6 @@ const importOverlaySVG = (paper: paper.PaperScope) => {
         item.data = { type: key };
         findLayer(paper, 'overlay').firstChild.addChild(item);
         if (findLayer(paper, 'overlay').firstChild.children.length === overlayKey.length) {
-          console.log('3');
-
           findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
           resolve('overlayDone');
         }
@@ -575,15 +572,12 @@ const importOverlaySVG = (paper: paper.PaperScope) => {
   });
 };
 const setOverlay = (view: number, paper: paper.PaperScope) => {
-  // if (!isOverlaySVG) return;
-
   findLayer(paper, 'overlay').matrix.reset();
   findLayer(paper, 'overlay').matrix.scale(1 / view);
 
   const overlayW = findLayer(paper, 'overlay').bounds.width;
   const overlayH = findLayer(paper, 'overlay').bounds.height;
-  // const overlayW = iconSize.width * 4;
-  // const overlayH = iconSize.height / 2;
+
   findLayer(paper, 'overlay').position = new Point(
     paper.view.bounds.topRight.x - overlayW / 2,
     paper.view.bounds.topRight.y + overlayH / 2
@@ -616,7 +610,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     deletePhoto,
     setCurrentCanvasIndex,
     canvasHistory,
-    // setCanvasHistory,
     canvasSize,
     setImplantInput,
   } = props;
@@ -1681,25 +1674,9 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     });
 
     (async () => {
-      console.log('1');
       const a = await importOverlaySVG(paper);
       if (a) setIsOverlaySVG(true);
-      console.log('4');
     })();
-
-    // overlayKey.forEach((key, index) => {
-    //   const tempItem = new Group();
-    //   tempItem.data = 'aaaaaa';
-    //   tempItem.importSVG(assets[key as formatAssetKey], (item: paper.Item) => {
-    //     item.position.x += iconSize.width * index;
-    //     item.data = { type: key };
-    //     findLayer(paper, 'overlay').firstChild.addChild(item);
-    //     if (findLayer(paper, 'overlay').firstChild.children.length === overlayKey.length) {
-    //       findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
-    //     }
-    //   });
-    //   tempItem.remove();
-    // });
 
     if (canvasHistory[canvasIndex].history.length > 0) {
       isHistory.current = true;
