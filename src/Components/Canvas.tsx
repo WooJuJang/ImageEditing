@@ -1287,9 +1287,16 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         if (child.contains(findLayer(paper, 'overlay').matrix.inverseTransform(event.point))) {
           const type = child.data.type;
           if (type === 'subtract') {
+            console.log(undoHistoryArr.current);
             findLayer(paper, 'underlay').visible = true;
             findLayer(paper, 'background').removeChildren();
+
+            findLayer(paper, 'sketch').removeChildren();
             deletePhoto(canvasIndex);
+            undoHistoryArr.current.splice(0, undoHistoryArr.current.length);
+            undoHistoryArr.current.push({ isCrop: false, background: '', sketchHistory: '' });
+            console.log(undoHistoryArr.current);
+            option = 'subtract';
           } else if (type === 'visible') {
             findLayer(paper, 'sketch').visible = !findLayer(paper, 'sketch').visible;
           } else if (type === 'upload') {
@@ -1471,7 +1478,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   };
   Tools.moveTool.onMouseUp = (event: paper.ToolEvent) => {
     if (!layers) return;
-    if (option === 'edit' || option === 'crop') return;
+    if (option === 'edit' || option === 'crop' || option === 'subtract') return;
 
     makeNewLayer(false);
   };
@@ -1823,9 +1830,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!layers) return;
       if (!undoHistoryArr.current || sketchIndex.current <= 0) return;
 
-      if (undoHistoryArr.current[sketchIndex.current].isCrop) {
+      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
         scaleIndex.current -= 1;
       }
+      console.log(undoHistoryArr.current);
       sketchIndex.current -= 1;
       layers.sketch.removeChildren();
       layers.sketch.visible = true;
