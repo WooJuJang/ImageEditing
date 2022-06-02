@@ -283,11 +283,10 @@ const EditCanvas = () => {
   }, []);
 
   useEffect(() => {
-    console.log(surface, calcCanvasSize(surface).width);
-    setCanvasSize({
-      width: calcCanvasSize(surface).width,
-      height: calcCanvasSize(surface).height,
-    });
+    // setCanvasSize({
+    //   width: calcCanvasSize(surface).width,
+    //   height: calcCanvasSize(surface).height,
+    // });
 
     window.addEventListener(
       'resize',
@@ -616,7 +615,17 @@ const EditCanvas = () => {
         <div>
           <span>Split: </span>
           {[1, 2, 4, 6].map((number) => (
-            <button key={number} onClick={() => setSurface(number)}>{`${number} Surface`}</button>
+            <button
+              key={number}
+              onClick={() => {
+                setSurface(number);
+
+                setCanvasSize({
+                  width: calcCanvasSize(number).width,
+                  height: calcCanvasSize(number).height,
+                });
+              }}
+            >{`${number} Surface`}</button>
           ))}
           <button
             onClick={() => {
