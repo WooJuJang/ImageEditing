@@ -1287,15 +1287,16 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         if (child.contains(findLayer(paper, 'overlay').matrix.inverseTransform(event.point))) {
           const type = child.data.type;
           if (type === 'subtract') {
-            console.log(undoHistoryArr.current);
             findLayer(paper, 'underlay').visible = true;
             findLayer(paper, 'background').removeChildren();
 
             findLayer(paper, 'sketch').removeChildren();
             deletePhoto(canvasIndex);
             undoHistoryArr.current.splice(0, undoHistoryArr.current.length);
-            undoHistoryArr.current.push({ isCrop: false, background: '', sketchHistory: '' });
-            console.log(undoHistoryArr.current);
+            scaleIndex.current = 0;
+            sketchIndex.current = -1;
+            currentImage.current = '';
+
             option = 'subtract';
           } else if (type === 'visible') {
             findLayer(paper, 'sketch').visible = !findLayer(paper, 'sketch').visible;
@@ -1822,6 +1823,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       tempCanvasHistory[canvasIndex].imageUrl = url;
 
       layers.sketch.visible = true;
+      console.log(sketchIndex.current);
     },
     actionTool(action: formatTool) {
       Tools[action].activate();
@@ -1837,8 +1839,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       sketchIndex.current -= 1;
       layers.sketch.removeChildren();
       layers.sketch.visible = true;
-      layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
       layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
+      layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
     },
     redoHistory() {
       if (!layers) return;

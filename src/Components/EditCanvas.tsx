@@ -236,6 +236,8 @@ const EditCanvas = () => {
   };
   const deletePhoto = (canvasIndex: number) => {
     isBackgrounds[canvasIndex as formatIsBackgroundKey] = false;
+    canvasHistory.current[canvasIndex].imageUrl = '';
+    canvasHistory.current[canvasIndex].history = [];
   };
 
   const inputImage = (e: React.ChangeEvent<HTMLInputElement>) => {
