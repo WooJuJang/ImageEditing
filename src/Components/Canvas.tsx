@@ -1693,7 +1693,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       tempCanvasHistory[canvasIndex].history = data;
     };
   }, [paper, importHistory, canvasHistory, canvasIndex]);
-
   useEffect(() => {
     if (currentImage.current) {
       if (!isOverlaySVG) return;
