@@ -119,7 +119,6 @@ let option: string;
 let pointTextId: number;
 let currText: string;
 let cropCircleButton: paper.Shape;
-let isMakeCropField = false;
 let isEditText = false;
 let hitResult: paper.HitResult;
 let overlayGroup: paper.Group;
@@ -525,7 +524,6 @@ const setUnderlay = (paper: paper.PaperScope, initCanvasSize: IInitCanvasSize, c
     fillColor: 'green',
   });
   number.content = String(canvasIndex + 1);
-  const surfaceSize = surface > 3 ? surface / 2 : surface;
   number.fitBounds(
     new Rectangle({
       x: paper.view.bounds.width * 0.25,
@@ -602,14 +600,11 @@ Canvas 컴포넌트
 */
 const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const {
-    view,
     canvasIndex,
     action,
     width,
     height,
-    scaleX,
-    scaleY,
-    viewX,
+
     viewY,
     surface,
     currColor,
@@ -617,7 +612,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     size,
     setFilter,
     initCanvasSize,
-    setIsViewOriginal,
     isViewOriginal,
     deletePhoto,
     setCurrentCanvasIndex,
@@ -665,11 +659,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const [canvasRect, setCanvasRect] = useState({ x: 0, y: 0, width: 0, height: 0 });
   const [cursor, setCursor] = useState('default');
   const [isLayerMove, setIsLayerMove] = useState(false);
-  const [isOverlayIcon, setIsOverlayIcon] = useState(false);
   const [initScaleX, setInitScaleX] = useState(1);
   const [isScreenShot, setIsScreenShot] = useState(false);
-  const canvasContainer = useRef<HTMLDivElement>(null);
-  const [settingCanvas, setSettingCanvas] = useState<HTMLCanvasElement>();
   const [isPreview, setIsPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>();
   const [screenShotLocation, setScreenShotLocation] = useState({
@@ -833,7 +824,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   );
 
   const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
-    const imageBounds = layers.background.firstChild.bounds;
     itemBounds = item.bounds;
 
     diffWidth = layers.background.firstChild.bounds.width / (layers.background.firstChild as paper.Raster).size.width;
@@ -852,7 +842,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
     subRaster.locked = true;
     layers.background.firstChild.remove();
-    isMakeCropField = false;
+    // isMakeCropField = false;
 
     sketchResize(itemBounds, layers, subRaster, temp);
   };
@@ -1646,7 +1636,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       return;
     }
     canvas = canvasRef.current;
-    setSettingCanvas(canvas);
     ctx = canvas.getContext('2d');
     paper.setup(canvas);
     const background = new Layer();
