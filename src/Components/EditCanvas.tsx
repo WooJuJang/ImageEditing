@@ -1,6 +1,6 @@
 import html2canvas from 'html2canvas';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import Canvas, { formatTool, historyType } from './Canvas';
+import Canvas, { formatTool, historyType, ICurrentScale } from './Canvas';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
 import { throttle } from 'lodash';
@@ -12,17 +12,21 @@ export interface IImplantInput {
   isCrown: boolean;
   isTooltip: boolean;
 }
-export interface ICanvasHistory {
-  index: number;
-  imageUrl: string;
-  history: historyType[];
-}
 export interface IFilter {
   Brightness: number;
   Saturation: number;
   Contranst: number;
   HueRotate: number;
   Inversion: number;
+}
+export interface ICanvasHistory {
+  index: number;
+  imageUrl: string;
+  sketchIndex: number;
+  history: historyType[];
+  scaleIndex: number;
+  scaleArr: ICurrentScale[];
+  filter: IFilter;
 }
 
 const layeroutTemplete = [
@@ -76,6 +80,16 @@ interface IFilterBtnTemplete {
   init: number;
   slide: boolean;
 }
+
+export interface IDetail {
+  width: number;
+  height: number;
+  pixcelspacing: {
+    x: number;
+    y: number;
+  };
+}
+
 const filterBtnTemplete: IFilterBtnTemplete[] = [
   {
     name: 'Brightness',
@@ -174,24 +188,101 @@ const EditCanvas = () => {
     width: calcCanvasSize(surface).width,
     height: calcCanvasSize(surface).height,
   });
+  const [detail, setDetail] = useState<IDetail | undefined>();
   const [action, setAction] = useState<formatTool>('penTool');
   const [currentCanvasIndex, setCurrentCanvasIndex] = useState(0);
-  // const [canvasHistory, setCanvasHistory] = useState<ICanvasHistory[]>([
-  //   { index: 0, imageUrl: '', history: [] },
-  //   { index: 1, imageUrl: '', history: [] },
-  //   { index: 2, imageUrl: '', history: [] },
-  //   { index: 3, imageUrl: '', history: [] },
-  //   { index: 4, imageUrl: '', history: [] },
-  //   { index: 5, imageUrl: '', history: [] },
-  // ]);
 
   const canvasHistory = useRef<ICanvasHistory[]>([
-    { index: 0, imageUrl: '', history: [] },
-    { index: 1, imageUrl: '', history: [] },
-    { index: 2, imageUrl: '', history: [] },
-    { index: 3, imageUrl: '', history: [] },
-    { index: 4, imageUrl: '', history: [] },
-    { index: 5, imageUrl: '', history: [] },
+    {
+      index: 0,
+      imageUrl: '',
+      sketchIndex: 0,
+      history: [],
+      scaleIndex: 0,
+      scaleArr: [],
+      filter: {
+        Brightness: 0,
+        Saturation: 0,
+        Contranst: 0,
+        HueRotate: 0,
+        Inversion: 0,
+      },
+    },
+    {
+      index: 1,
+      imageUrl: '',
+      sketchIndex: 0,
+      history: [],
+      scaleIndex: 0,
+      scaleArr: [],
+      filter: {
+        Brightness: 0,
+        Saturation: 0,
+        Contranst: 0,
+        HueRotate: 0,
+        Inversion: 0,
+      },
+    },
+    {
+      index: 2,
+      imageUrl: '',
+      sketchIndex: 0,
+      history: [],
+      scaleIndex: 0,
+      scaleArr: [],
+      filter: {
+        Brightness: 0,
+        Saturation: 0,
+        Contranst: 0,
+        HueRotate: 0,
+        Inversion: 0,
+      },
+    },
+    {
+      index: 3,
+      imageUrl: '',
+      sketchIndex: 0,
+      history: [],
+      scaleIndex: 0,
+      scaleArr: [],
+      filter: {
+        Brightness: 0,
+        Saturation: 0,
+        Contranst: 0,
+        HueRotate: 0,
+        Inversion: 0,
+      },
+    },
+    {
+      index: 4,
+      imageUrl: '',
+      sketchIndex: 0,
+      history: [],
+      scaleIndex: 0,
+      scaleArr: [],
+      filter: {
+        Brightness: 0,
+        Saturation: 0,
+        Contranst: 0,
+        HueRotate: 0,
+        Inversion: 0,
+      },
+    },
+    {
+      index: 5,
+      imageUrl: '',
+      sketchIndex: 0,
+      history: [],
+      scaleIndex: 0,
+      scaleArr: [],
+      filter: {
+        Brightness: 0,
+        Saturation: 0,
+        Contranst: 0,
+        HueRotate: 0,
+        Inversion: 0,
+      },
+    },
   ]);
 
   const [implantInput, setImplantInput] = useState<IImplantInput>({
@@ -267,7 +358,6 @@ const EditCanvas = () => {
     if (window.innerWidth >= 600 && window.innerWidth <= 1200) {
       const w = window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0];
       const h = initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1];
-      console.log(w);
       setCanvasSize({
         width: w,
         height: h,
@@ -566,11 +656,30 @@ const EditCanvas = () => {
         </button>
         <button
           onClick={() => {
-            photoUrl = '/testImage/test2.jpeg';
+            photoUrl =
+              'https://minio.develop.vsmart00.com/clever/files/images/photo/vatech/daemon.20220307.vatech.2203072%4090.pa.pa.IS20220307_162315_0373_75591430.dcm?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=haruband%2F20220608%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20220608T072341Z&X-Amz-Expires=43200&X-Amz-SignedHeaders=host&X-Amz-Signature=8f990dff009bfd7460894b69cee31200b231bcea3b9a599bd3a59e93993e7ce9';
+
+            const photoDetail: IDetail = {
+              width: 800,
+              height: 1095,
+              pixcelspacing: {
+                x: 0.0296,
+                y: 0.0296,
+              },
+            };
+            setDetail(photoDetail);
             settingPhoto(photoUrl);
           }}
         >
           이미지3
+        </button>
+        <button
+          onClick={() => {
+            photoUrl = '/testImage/test2.jpeg';
+            settingPhoto(photoUrl);
+          }}
+        >
+          이미지4
         </button>
         <span>개별 이미지 배치: </span>
         <button
@@ -677,10 +786,7 @@ const EditCanvas = () => {
                 ref={(ref) => {
                   canvasRefs.current[i] = ref;
                 }}
-                view={[
-                  initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
-                  initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
-                ]}
+                view={[layeroutTemplete[Math.floor(surface / 2)].view[0], layeroutTemplete[Math.floor(surface / 2)].view[1]]}
                 canvasIndex={i}
                 action={action}
                 surface={surface}
@@ -708,6 +814,7 @@ const EditCanvas = () => {
 
                 canvasSize={canvasSize}
                 setImplantInput={setImplantInput}
+                detail={detail}
               />
             );
           })}

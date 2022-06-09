@@ -1,7 +1,7 @@
 import Paper, { Group, Path, Point, PointText, Raster, Rectangle, Shape, Size, Layer } from 'paper';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ICursorList } from '../PaperTypes';
-import { IFilter, IImplantInput, ICanvasHistory } from './EditCanvas';
+import { IFilter, IImplantInput, ICanvasHistory, IDetail } from './EditCanvas';
 import PreviewModal from './PreviewModal';
 import TextModal from './TextModal';
 
@@ -77,6 +77,7 @@ type propsType = {
   canvasHistory: ICanvasHistory[];
   canvasSize: ICanvasSize;
   setImplantInput: (value: IImplantInput) => void;
+  detail: IDetail | undefined;
 };
 export type refType = {
   // hello: () => void;
@@ -138,25 +139,28 @@ export interface historyType {
   sketchHistory: string;
   background: string;
 }
-interface ICurrentScale {
+export interface ICurrentScale {
   width: number;
   height: number;
 
   distanceScaleWidth: number;
   distanceScaleHeight: number;
+
+  PhotoWidth: number;
+  PhotoHeight: number;
 }
 // const undoHistoryArr: historyType[] = [];
 let scaleWidth = 1;
 let scaleHeight = 1;
-let currentScale: ICurrentScale[] = [
-  {
-    width: 1,
-    height: 1,
+// let currentScale: ICurrentScale[] = [
+//   {
+//     width: 1,
+//     height: 1,
 
-    distanceScaleWidth: 1,
-    distanceScaleHeight: 1,
-  },
-];
+//     distanceScaleWidth: 1,
+//     distanceScaleHeight: 1,
+//   },
+// ];
 
 // let initImageBounds: paper.Rectangle;
 let itemBounds: paper.Rectangle;
@@ -571,6 +575,7 @@ const importOverlaySVG = (paper: paper.PaperScope) => {
     });
   });
 };
+
 const setOverlay = (view: number, paper: paper.PaperScope) => {
   findLayer(paper, 'overlay').matrix.reset();
   findLayer(paper, 'overlay').matrix.scale(1 / view);
@@ -583,6 +588,7 @@ const setOverlay = (view: number, paper: paper.PaperScope) => {
     paper.view.bounds.topRight.y + overlayH / 2
   );
 };
+
 /*
 ##################################################################################################
 ##################################################################################################
@@ -598,7 +604,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     action,
     width,
     height,
-
+    viewX,
     viewY,
     surface,
     currColor,
@@ -612,6 +618,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     canvasHistory,
     canvasSize,
     setImplantInput,
+    detail,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paper = useMemo(() => new Paper.PaperScope(), []);
@@ -660,6 +667,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     left: 0,
     top: 0,
   });
+  const isSettingPhoto = useRef(false);
+  const scaleArr = useRef<ICurrentScale[]>([
+    {
+      width: 1,
+      height: 1,
+
+      distanceScaleWidth: 1,
+      distanceScaleHeight: 1,
+
+      PhotoWidth: 1,
+      PhotoHeight: 1,
+    },
+  ]);
   const isHistory = useRef<Boolean>(false);
   let isDrag = false;
   const currBackgroundSize = useRef({
@@ -672,8 +692,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const scaleIndex = useRef<number>(0);
   const importHistory = useCallback((canvasHistory: ICanvasHistory[], canvasIndex: number, paper: paper.PaperScope) => {
     undoHistoryArr.current = canvasHistory[canvasIndex].history;
-    sketchIndex.current = canvasHistory[canvasIndex].history.length - 1;
-
+    sketchIndex.current = canvasHistory[canvasIndex].sketchIndex;
+    scaleIndex.current = canvasHistory[canvasIndex].scaleIndex;
+    scaleArr.current = canvasHistory[canvasIndex].scaleArr;
+    console.log(canvasHistory[canvasIndex].filter);
+    setCurrCanvasFilter(canvasHistory[canvasIndex].filter);
     findLayer(paper, 'background').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].background);
     findLayer(paper, 'sketch').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].sketchHistory);
 
@@ -703,15 +726,32 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
   //두 포인트 사이에 거리 구하기 함수
   const getDistance = (item: paper.Path) => {
-    const a = new Point(
-      item.segments[0].point.x / currentScale[scaleIndex.current].distanceScaleWidth,
-      item.segments[0].point.y / currentScale[scaleIndex.current].distanceScaleHeight
-    );
-    const b = new Point(
-      item.segments[1].point.x / currentScale[scaleIndex.current].distanceScaleWidth,
-      item.segments[1].point.y / currentScale[scaleIndex.current].distanceScaleHeight
-    );
-    return a.getDistance(b).toFixed(2);
+    let pixelspacingX = 1;
+    let pixelspacingY = 1;
+    if (detail?.pixcelspacing) {
+      pixelspacingX = detail.pixcelspacing.x;
+      pixelspacingY = detail.pixcelspacing.y;
+
+      const a = new Point(
+        ((item.segments[0].point.x * detail.width) / scaleArr.current[scaleIndex.current].PhotoWidth) * pixelspacingX,
+        ((item.segments[0].point.y * detail.height) / scaleArr.current[scaleIndex.current].PhotoHeight) * pixelspacingY
+      );
+      const b = new Point(
+        ((item.segments[1].point.x * detail.width) / scaleArr.current[scaleIndex.current].PhotoWidth) * pixelspacingX,
+        ((item.segments[1].point.y * detail.height) / scaleArr.current[scaleIndex.current].PhotoHeight) * pixelspacingY
+      );
+      return a.getDistance(b).toFixed(2);
+    } else {
+      const a = new Point(
+        item.segments[0].point.x / scaleArr.current[scaleIndex.current].distanceScaleWidth,
+        item.segments[0].point.y / scaleArr.current[scaleIndex.current].distanceScaleHeight
+      );
+      const b = new Point(
+        item.segments[1].point.x / scaleArr.current[scaleIndex.current].distanceScaleWidth,
+        item.segments[1].point.y / scaleArr.current[scaleIndex.current].distanceScaleHeight
+      );
+      return a.getDistance(b).toFixed(2);
+    }
   };
 
   const fitLayerInView = useCallback((paper: paper.PaperScope, viewY: number, canvasSizeWidth: number, canvasSizeHeight: number) => {
@@ -728,29 +768,49 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
     const viewW = paper.view.bounds.width / currBackgroundSize.current.width;
     const viewH = paper.view.bounds.height / currBackgroundSize.current.height;
+
     if (currBackgroundSize.current.width > currBackgroundSize.current.height) {
       paper.view.scale(viewW, new Point(0, 0));
-      if (isHistory.current) {
-        isHistory.current = false;
+      if (paper.view.bounds.height < findLayer(paper, 'background').bounds.height) {
+        paper.view.matrix.reset();
+        paper.view.scale(viewH, new Point(0, 0));
+        if (isHistory.current) {
+          isHistory.current = false;
 
-        currBackgroundSize.current.center = new Point(600, 375);
+          currBackgroundSize.current.center = new Point(600, 375);
+        }
+        paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
+        setOverlay(viewH, paper);
+      } else {
+        if (isHistory.current) {
+          isHistory.current = false;
+
+          currBackgroundSize.current.center = new Point(600, 375);
+        }
+        paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
+        setOverlay(viewW, paper);
       }
-      paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
-
-      setOverlay(viewW, paper);
     } else {
       paper.view.scale(viewH, new Point(0, 0));
-      if (paper.view.bounds.width < currBackgroundSize.current.width) {
+      if (paper.view.bounds.width < findLayer(paper, 'background').bounds.width) {
         paper.view.matrix.reset();
         paper.view.scale(viewW, new Point(0, 0));
-      }
-      if (isHistory.current) {
-        isHistory.current = false;
+        if (isHistory.current) {
+          isHistory.current = false;
 
-        currBackgroundSize.current.center = new Point(600, 375);
+          currBackgroundSize.current.center = new Point(600, 375);
+        }
+        paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
+        setOverlay(viewW, paper);
+      } else {
+        if (isHistory.current) {
+          isHistory.current = false;
+
+          currBackgroundSize.current.center = new Point(600, 375);
+        }
+        paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
+        setOverlay(viewH, paper);
       }
-      paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
-      setOverlay(viewH, paper);
     }
   }, []);
   const makeNewLayer = useCallback(
@@ -767,14 +827,18 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       paper: paper.PaperScope,
       width: number,
       height: number,
-
+      viewXSize: number,
+      viewYSize: number,
       url: string,
       isSurface: boolean,
 
-      canvasSize: ICanvasSize,
-      viewYSize: number
+      canvasSize: ICanvasSize
     ) => {
       if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
+        currBackgroundSize.current.center = findLayer(paper, 'background').bounds.center;
+        currBackgroundSize.current.width = findLayer(paper, 'background').bounds.width;
+        currBackgroundSize.current.height = findLayer(paper, 'background').bounds.height;
+
         fitLayerInView(paper, viewYSize, canvasSize.width, canvasSize.height);
       } else {
         paper.activate();
@@ -786,7 +850,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         let raster = new Raster({
           crossOrigin: 'anonymous',
           source: url,
-          position: new Point(width / 2, height / 2),
+          // position: new Point(width / 2, height / 2),
           locked: true,
         });
 
@@ -796,16 +860,22 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
               x: 0,
               y: 0,
 
+              // width: viewXSize,
+              // height: viewYSize,
               width: 1200,
               height: 750,
             })
           );
           background.addChild(raster);
 
+          if (isSettingPhoto.current) {
+            scaleArr.current[0].PhotoWidth = background.bounds.width;
+            scaleArr.current[0].PhotoHeight = background.bounds.height;
+            isSettingPhoto.current = false;
+          }
           currBackgroundSize.current.center = background.bounds.center;
           currBackgroundSize.current.width = background.bounds.width;
           currBackgroundSize.current.height = background.bounds.height;
-
           fitLayerInView(paper, viewYSize, canvasSize.width, canvasSize.height);
           if (!isSurface) {
             makeNewLayer(false);
@@ -848,27 +918,28 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     layers.sketch.scale(scaleWidth, scaleHeight, new Point(paper.view.center));
 
     layers.sketch.applyMatrix = true;
-
-    currentScale[scaleIndex.current] = {
+    scaleArr.current[scaleIndex.current] = {
       width: scaleWidth,
       height: scaleHeight,
       distanceScaleWidth: 1,
       distanceScaleHeight: 1,
+      PhotoWidth: layers.background.bounds.width,
+      PhotoHeight: layers.background.bounds.height,
     };
 
     for (let i = 0; i <= scaleIndex.current; i++) {
-      currentScale[scaleIndex.current].distanceScaleWidth *= currentScale[i].width;
-      currentScale[scaleIndex.current].distanceScaleHeight *= currentScale[i].height;
+      scaleArr.current[scaleIndex.current].distanceScaleWidth *= scaleArr.current[i].width;
+      scaleArr.current[scaleIndex.current].distanceScaleHeight *= scaleArr.current[i].height;
     }
 
     layers.sketch.children.forEach((child: paper.Item) => {
       if (child.data.type === 'history') {
         child.children.forEach((historyChild: paper.Item) => {
           if (historyChild.data.type === 'rulerGroup') {
-            historyChild.firstChild.strokeWidth = 4 * currentScale[scaleIndex.current].distanceScaleWidth;
+            historyChild.firstChild.strokeWidth = 4 * scaleArr.current[scaleIndex.current].distanceScaleWidth;
             historyChild.firstChild.dashArray = [
-              8 * currentScale[scaleIndex.current].distanceScaleWidth,
-              8 * currentScale[scaleIndex.current].distanceScaleWidth,
+              8 * scaleArr.current[scaleIndex.current].distanceScaleWidth,
+              8 * scaleArr.current[scaleIndex.current].distanceScaleWidth,
             ];
           }
         });
@@ -981,7 +1052,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       unitePath.remove();
       const implantGroup = implantInput.isTooltip ? new Group([group, pointText]) : new Group([group]);
 
-      implantGroup.scale(currentScale[scaleIndex.current].distanceScaleWidth, currentScale[scaleIndex.current].distanceScaleHeight);
+      implantGroup.scale(scaleArr.current[scaleIndex.current].distanceScaleWidth, scaleArr.current[scaleIndex.current].distanceScaleHeight);
       applyCurrentGroup(implantGroup);
       makeNewLayer(false);
     });
@@ -1192,7 +1263,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       return;
     }
     item = hitResult.item;
-
+    segment = hitResult.segment;
     if (item.parent.data.type === 'PointText') {
       if (option === 'edit') {
         isEditText = true;
@@ -1279,6 +1350,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
             scaleIndex.current = 0;
             sketchIndex.current = -1;
             currentImage.current = '';
+            setCurrCanvasFilter({
+              Brightness: 0,
+              Saturation: 0,
+              Contranst: 0,
+              HueRotate: 0,
+              Inversion: 0,
+            });
+            findLayer(paper, 'underlay').visible = true;
+            findLayer(paper, 'sketch').visible = false;
+            fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
+            setUnderlay(paper, initCanvasSize, canvasIndex, surface);
+            setOverlay(1, paper);
+            findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
 
             option = 'subtract';
           } else if (type === 'visible') {
@@ -1297,7 +1381,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
               paper.view.element.toBlob((blob: any) => {
                 const url = URL.createObjectURL(blob);
-                // window.open(url, '[blank]');
                 setPreviewUrl(url);
                 setIsPreview(true);
               });
@@ -1548,13 +1631,16 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       from: event.point,
       to: event.point,
       strokeColor: 'green',
-      strokeWidth: 4 * currentScale[scaleIndex.current].distanceScaleWidth,
+      strokeWidth: 4 * scaleArr.current[scaleIndex.current].distanceScaleWidth,
       strokeCap: 'round',
       strokeJoin: 'round',
       data: { type: 'ruler', scaleIndex: scaleIndex.current },
     });
     path.applyMatrix = true;
-    path.dashArray = [8 * currentScale[scaleIndex.current].distanceScaleWidth, 8 * currentScale[scaleIndex.current].distanceScaleWidth];
+    path.dashArray = [
+      8 * scaleArr.current[scaleIndex.current].distanceScaleWidth,
+      8 * scaleArr.current[scaleIndex.current].distanceScaleWidth,
+    ];
   };
   Tools.rulerTool.onMouseMove = (event: paper.ToolEvent) => {
     if (event.item) {
@@ -1584,7 +1670,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       path.remove();
       pointText.remove();
     } else {
-      pointText.scale(currentScale[scaleIndex.current].distanceScaleWidth, currentScale[scaleIndex.current].distanceScaleHeight);
+      pointText.scale(scaleArr.current[scaleIndex.current].distanceScaleWidth, scaleArr.current[scaleIndex.current].distanceScaleHeight);
 
       group.addChild(path);
       group.addChild(pointText);
@@ -1684,6 +1770,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
     return () => {
       if (!canvasHistory[canvasIndex].imageUrl) return;
+      console.log('11111');
       paper.view.bounds.x = 0;
       paper.view.bounds.y = 0;
       const tempCanvasHistory = [...canvasHistory];
@@ -1691,6 +1778,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
       tempCanvasHistory[canvasIndex].imageUrl = currentImage.current;
       tempCanvasHistory[canvasIndex].history = data;
+      tempCanvasHistory[canvasIndex].scaleIndex = scaleIndex.current;
+      tempCanvasHistory[canvasIndex].sketchIndex = sketchIndex.current;
+      tempCanvasHistory[canvasIndex].scaleArr = scaleArr.current;
+
+      tempCanvasHistory[canvasIndex].filter = currCanvasFilter;
     };
   }, [paper, importHistory, canvasHistory, canvasIndex]);
   useEffect(() => {
@@ -1699,7 +1791,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       findLayer(paper, 'sketch').visible = isViewOriginal;
 
       paper.view.matrix.reset();
-      settingBackground(paper, width, height, currentImage.current, true, canvasSize, viewY);
+      settingBackground(paper, width, height, viewX, viewY, currentImage.current, false, canvasSize);
     } else {
       findLayer(paper, 'underlay').visible = true;
       findLayer(paper, 'sketch').visible = false;
@@ -1711,10 +1803,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     isOverlaySVG,
     width,
     height,
+    viewX,
     viewY,
     fitLayerInView,
-    // canvasSize.width,
-    // canvasSize.height,
+
     canvasSize,
     paper,
     settingBackground,
@@ -1780,7 +1872,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!layers) return;
       paper.activate();
 
-      settingBackground(paper, width, height, url, false, canvasSize, viewY);
+      isSettingPhoto.current = true;
+      settingBackground(paper, width, height, viewX, viewY, url, false, canvasSize);
 
       currentImage.current = url;
 
@@ -1788,37 +1881,42 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       tempCanvasHistory[canvasIndex].imageUrl = url;
 
       layers.sketch.visible = true;
-      console.log(sketchIndex.current);
     },
+
     actionTool(action: formatTool) {
       Tools[action].activate();
     },
     undoHistory() {
       if (!layers) return;
       if (!undoHistoryArr.current || sketchIndex.current <= 0) return;
-
-      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
-        scaleIndex.current -= 1;
-      }
-      console.log(undoHistoryArr.current);
-      sketchIndex.current -= 1;
       layers.sketch.removeChildren();
       layers.sketch.visible = true;
+      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
+        scaleIndex.current -= 1;
+        currBackgroundSize.current.width = scaleArr.current[scaleIndex.current].PhotoWidth;
+        currBackgroundSize.current.height = scaleArr.current[scaleIndex.current].PhotoHeight;
+      }
+      sketchIndex.current -= 1;
+
       layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
       layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
+
+      fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
     },
     redoHistory() {
       if (!layers) return;
       if (!undoHistoryArr.current || sketchIndex.current >= undoHistoryArr.current.length - 1) return;
-
       sketchIndex.current += 1;
-      paper.project.activeLayer.removeChildren();
       layers.sketch.visible = true;
-      paper.project.activeLayer.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
-      layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
-      if (undoHistoryArr.current[sketchIndex.current].isCrop) {
+      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
         scaleIndex.current += 1;
+        currBackgroundSize.current.width = scaleArr.current[scaleIndex.current].PhotoWidth;
+        currBackgroundSize.current.height = scaleArr.current[scaleIndex.current].PhotoHeight;
       }
+      layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
+      layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
+
+      fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
     },
     erase() {
       Tools.partClearTool.activate();
