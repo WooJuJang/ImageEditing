@@ -1,3 +1,4 @@
+import { filter, find } from 'lodash';
 import Paper, { Group, Path, Point, PointText, Raster, Rectangle, Shape, Size, Layer } from 'paper';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ICursorList } from '../PaperTypes';
@@ -107,7 +108,6 @@ const assets: assetsKeyType = {
   subtract: '/contents/subtract.svg',
 };
 
-let canvas: HTMLCanvasElement;
 let path: paper.Path;
 let group: paper.Group;
 let history: paper.Group;
@@ -131,7 +131,7 @@ let implantImage: paper.Group;
 let moveArea: paper.Shape;
 let rotateArea: paper.Shape;
 let unitePath: paper.PathItem;
-let ctx: CanvasRenderingContext2D | null;
+
 // let initScaleX = 1;
 
 export interface historyType {
@@ -610,6 +610,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     currColor,
     currToothImageUrl,
     size,
+    filter,
     setFilter,
     initCanvasSize,
     isViewOriginal,
@@ -641,13 +642,23 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }),
     [paper.Tool]
   );
-  const [currCanvasFilter, setCurrCanvasFilter] = useState<IFilter>({
-    Brightness: 0,
-    Saturation: 0,
-    Contranst: 0,
-    HueRotate: 0,
-    Inversion: 0,
-  });
+  let canvas: HTMLCanvasElement;
+  let ctx: CanvasRenderingContext2D | null;
+  // const [currCanvasFilter, setCurrCanvasFilter] = useState<IFilter>({
+  //   Brightness: 0,
+  //   Saturation: 0,
+  //   Contranst: 0,
+  //   HueRotate: 0,
+  //   Inversion: 0,
+  // });
+
+  // const currCanvasFilter = useRef<IFilter>({
+  //   Brightness: 0,
+  //   Saturation: 0,
+  //   Contranst: 0,
+  //   HueRotate: 0,
+  //   Inversion: 0,
+  // });
   const currentImage = useRef<string>('');
   const [layers, setLayers] = useState<ILayers>();
   const sketchIndex = useRef<number>(-1);
@@ -690,21 +701,55 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const [isOverlaySVG, setIsOverlaySVG] = useState(false);
   const undoHistoryArr = useRef<historyType[]>([]);
   const scaleIndex = useRef<number>(0);
-  const importHistory = useCallback((canvasHistory: ICanvasHistory[], canvasIndex: number, paper: paper.PaperScope) => {
-    undoHistoryArr.current = canvasHistory[canvasIndex].history;
-    sketchIndex.current = canvasHistory[canvasIndex].sketchIndex;
-    scaleIndex.current = canvasHistory[canvasIndex].scaleIndex;
-    scaleArr.current = canvasHistory[canvasIndex].scaleArr;
-    console.log(canvasHistory[canvasIndex].filter);
-    setCurrCanvasFilter(canvasHistory[canvasIndex].filter);
-    findLayer(paper, 'background').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].background);
-    findLayer(paper, 'sketch').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].sketchHistory);
+  const importHistory = useCallback(
+    (canvasHistory: ICanvasHistory[], canvasIndex: number, paper: paper.PaperScope, ctx: CanvasRenderingContext2D) => {
+      undoHistoryArr.current = canvasHistory[canvasIndex].history;
+      sketchIndex.current = canvasHistory[canvasIndex].sketchIndex;
+      scaleIndex.current = canvasHistory[canvasIndex].scaleIndex;
+      scaleArr.current = canvasHistory[canvasIndex].scaleArr;
+      // setFilter(canvasHistory[canvasIndex].filter);
+      // setCurrCanvasFilter(canvasHistory[canvasIndex].filter);
+      findLayer(paper, 'background').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].background);
+      findLayer(paper, 'sketch').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].sketchHistory);
 
-    currentImage.current = canvasHistory[canvasIndex].imageUrl;
-    findLayer(paper, 'underlay').visible = false;
-    findLayer(paper, 'sketch').visible = true;
-  }, []);
+      currentImage.current = canvasHistory[canvasIndex].imageUrl;
+      findLayer(paper, 'underlay').visible = true;
+      findLayer(paper, 'sketch').visible = true;
+      ctx.filter = 'invert(100%)';
+      console.log(ctx.filter);
+    },
+    []
+  );
+  const applyFilter = (filter: IFilter) => {
+    if (!canvasRef.current) {
+      return;
+    }
+    const canvas = canvasRef.current;
+    ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let cmd = '';
+    if (filter.Brightness !== 0) {
+      cmd = cmd.concat(`brightness(${filter.Brightness + 100}%)`);
+    }
+    if (filter.Saturation !== 0) {
+      cmd = cmd.concat(`saturate(${filter.Saturation + 100}%)`);
+    }
 
+    if (filter.Contranst !== 0) {
+      cmd = cmd.concat(`contrast(${filter.Contranst + 100}%)`);
+    }
+    if (filter.HueRotate !== 0) {
+      cmd = cmd.concat(`hue-rotate(${filter.HueRotate}deg)`);
+    }
+    if (filter.Inversion > 0) {
+      cmd = cmd.concat(`invert(${filter.Inversion}%)`);
+    }
+    if (cmd.length > 0) {
+      ctx.filter = cmd;
+    } else {
+      ctx.filter = 'none';
+    }
+  };
   const addHistory = () => {
     if (!isDrag) return;
     removeHistory(sketchIndex.current);
@@ -720,7 +765,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     const back = findLayer(paper, 'background').exportJSON();
     const sketch = findLayer(paper, 'sketch').exportJSON();
     setIsScreenShot(false);
-    return { photo: {}, data: sketch, background: back, tools: currCanvasFilter, canvas: canvasRef.current };
+    return { photo: {}, data: sketch, background: back, tools: canvasHistory[canvasIndex].filter, canvas: canvasRef.current };
   };
   const saveAs = () => {};
 
@@ -757,6 +802,9 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const fitLayerInView = useCallback((paper: paper.PaperScope, viewY: number, canvasSizeWidth: number, canvasSizeHeight: number) => {
     paper.project.view.matrix.reset();
     paper.project.view.viewSize = new Size(canvasSizeWidth, viewY);
+
+    applyFilter(canvasHistory[canvasIndex].filter);
+
     if (!currentImage.current) {
       currBackgroundSize.current.center = new Point(canvasSizeWidth / 2, canvasSizeHeight / 2);
       currBackgroundSize.current.width = canvasSizeWidth;
@@ -850,7 +898,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         let raster = new Raster({
           crossOrigin: 'anonymous',
           source: url,
-          // position: new Point(width / 2, height / 2),
+          position: new Point(width / 2, height / 2),
           locked: true,
         });
 
@@ -1350,13 +1398,20 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
             scaleIndex.current = 0;
             sketchIndex.current = -1;
             currentImage.current = '';
-            setCurrCanvasFilter({
-              Brightness: 0,
-              Saturation: 0,
-              Contranst: 0,
-              HueRotate: 0,
-              Inversion: 0,
-            });
+            // setCurrCanvasFilter({
+            //   Brightness: 0,
+            //   Saturation: 0,
+            //   Contranst: 0,
+            //   HueRotate: 0,
+            //   Inversion: 0,
+            // });
+            // currCanvasFilter.current = {
+            //   Brightness: 0,
+            //   Saturation: 0,
+            //   Contranst: 0,
+            //   HueRotate: 0,
+            //   Inversion: 0,
+            // };
             findLayer(paper, 'underlay').visible = true;
             findLayer(paper, 'sketch').visible = false;
             fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
@@ -1763,14 +1818,14 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       const a = await importOverlaySVG(paper);
       if (a) setIsOverlaySVG(true);
     })();
-
+    if (!ctx) return;
     if (canvasHistory[canvasIndex].history.length > 0) {
       isHistory.current = true;
-      importHistory(canvasHistory, canvasIndex, paper);
+      importHistory(canvasHistory, canvasIndex, paper, ctx);
     }
+
     return () => {
       if (!canvasHistory[canvasIndex].imageUrl) return;
-      console.log('11111');
       paper.view.bounds.x = 0;
       paper.view.bounds.y = 0;
       const tempCanvasHistory = [...canvasHistory];
@@ -1782,14 +1837,14 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       tempCanvasHistory[canvasIndex].sketchIndex = sketchIndex.current;
       tempCanvasHistory[canvasIndex].scaleArr = scaleArr.current;
 
-      tempCanvasHistory[canvasIndex].filter = currCanvasFilter;
+      // tempCanvasHistory[canvasIndex].filter = currCanvasFilter.current;
     };
   }, [paper, importHistory, canvasHistory, canvasIndex]);
+
   useEffect(() => {
     if (currentImage.current) {
       if (!isOverlaySVG) return;
       findLayer(paper, 'sketch').visible = isViewOriginal;
-
       paper.view.matrix.reset();
       settingBackground(paper, width, height, viewX, viewY, currentImage.current, false, canvasSize);
     } else {
@@ -1967,38 +2022,11 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       findLayer(paper, 'overlay').rotate(-r, new Point(paper.view.bounds.center));
     },
     filter(filter: IFilter) {
-      if (!canvasRef.current) {
-        return;
-      }
-      const canvas = canvasRef.current;
-      ctx = canvas.getContext('2d');
-
-      if (!ctx) return;
-      let cmd = '';
-      if (filter.Brightness !== 0) {
-        cmd = cmd.concat(`brightness(${filter.Brightness + 100}%)`);
-      }
-      if (filter.Saturation !== 0) {
-        cmd = cmd.concat(`saturate(${filter.Saturation + 100}%)`);
-      }
-
-      if (filter.Contranst !== 0) {
-        cmd = cmd.concat(`contrast(${filter.Contranst + 100}%)`);
-      }
-      if (filter.HueRotate !== 0) {
-        cmd = cmd.concat(`hue-rotate(${filter.HueRotate}deg)`);
-      }
-      if (filter.Inversion > 0) {
-        cmd = cmd.concat(`invert(${filter.Inversion}%)`);
-      }
-      if (cmd.length > 0) {
-        ctx.filter = cmd;
-      } else {
-        ctx.filter = 'none';
-      }
+      applyFilter(filter);
       paper.project.activeLayer.visible = false;
       paper.project.activeLayer.visible = true;
-      setCurrCanvasFilter(filter);
+
+      canvasHistory[canvasIndex].filter = filter;
     },
     viewOriginal(isViewOriginal: boolean) {
       if (!layers) return;
@@ -2054,7 +2082,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         }}
         onMouseDown={() => {
           setCurrentCanvasIndex(canvasIndex);
-          setFilter(currCanvasFilter);
+
+          setFilter(canvasHistory[canvasIndex].filter);
         }}
         onMouseEnter={() => {
           if (!layers) return;

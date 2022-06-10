@@ -20,6 +20,7 @@ export interface IFilter {
   Inversion: number;
 }
 export interface ICanvasHistory {
+  [key: number]: number;
   index: number;
   imageUrl: string;
   sketchIndex: number;
@@ -397,6 +398,7 @@ const EditCanvas = () => {
   useEffect(() => {
     canvasRefs.current[currentCanvasIndex].filter(filter);
   }, [currentCanvasIndex, filter, filter.Brightness, filter.Saturation, filter.Contranst, filter.Inversion, filter.HueRotate]);
+
   useEffect(() => {
     if (!isImplantInput || !implantInput.implantImage) return;
     canvasRefs.current[currentCanvasIndex].implantInput(implantInput);
