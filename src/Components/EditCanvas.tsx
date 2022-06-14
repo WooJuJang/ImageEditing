@@ -193,6 +193,11 @@ const EditCanvas = () => {
   const [action, setAction] = useState<formatTool>('penTool');
   const [currentCanvasIndex, setCurrentCanvasIndex] = useState(0);
 
+  const filterBtnRef = useRef<HTMLButtonElement[]>([]);
+  const [filterBtnPosition, setFilterBtnPosition] = useState({
+    x: 0,
+    y: 0,
+  });
   const canvasHistory = useRef<ICanvasHistory[]>([
     {
       index: 0,
@@ -528,6 +533,10 @@ const EditCanvas = () => {
             return (
               <div key={index}>
                 <button
+                  ref={(ref) => {
+                    if (!ref) return;
+                    filterBtnRef.current[index] = ref;
+                  }}
                   onClick={() => {
                     const tempFilter = {
                       Brightness: false,
@@ -539,6 +548,12 @@ const EditCanvas = () => {
                     Object.entries(tempFilter).forEach(([key, value]) => {
                       if (key === filterBtnTemplete[index].name) {
                         tempFilter[key] = true;
+                        if (filterBtnRef && filterBtnRef.current[index]) {
+                          setFilterBtnPosition({
+                            x: filterBtnRef.current[index].getBoundingClientRect().x + 12,
+                            y: filterBtnRef.current[index].getBoundingClientRect().y + 12,
+                          });
+                        }
                       }
                     });
                     setFilterBtn(tempFilter);
@@ -547,18 +562,38 @@ const EditCanvas = () => {
                   {filterBtnTemplete[index].name}
                 </button>
                 {filterBtn[filterBtnTemplete[index].name] && (
-                  <div style={{ backgroundColor: 'pink' }}>
-                    <span>
-                      {filterBtnTemplete[index].min}% ~ {filterBtnTemplete[index].max}%
-                    </span>
-                    <input
-                      type="range"
-                      min={filterBtnTemplete[index].min}
-                      max={filterBtnTemplete[index].max}
-                      value={filter[filterBtnTemplete[index].name]}
-                      name={filterBtnTemplete[index].name}
-                      onChange={filterChange}
-                    />
+                  <div
+                    style={{ width: '100%', height: '100vh', position: 'absolute', top: '0px', left: '0px' }}
+                    onClick={() => {
+                      setFilterBtn({
+                        Brightness: false,
+                        Saturation: false,
+                        Contranst: false,
+                        HueRotate: false,
+                        Inversion: false,
+                      });
+                    }}
+                  >
+                    <div
+                      style={{
+                        backgroundColor: 'pink',
+                        position: 'absolute',
+                        top: `${filterBtnPosition.y}px`,
+                        left: `${filterBtnPosition.x}px`,
+                      }}
+                    >
+                      <span>
+                        {filterBtnTemplete[index].min}% ~ {filterBtnTemplete[index].max}%
+                      </span>
+                      <input
+                        type="range"
+                        min={filterBtnTemplete[index].min}
+                        max={filterBtnTemplete[index].max}
+                        value={filter[filterBtnTemplete[index].name]}
+                        name={filterBtnTemplete[index].name}
+                        onChange={filterChange}
+                      />
+                    </div>
                   </div>
                 )}
               </div>
