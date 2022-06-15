@@ -299,6 +299,7 @@ const EditCanvas = () => {
     isCrown: true,
     isTooltip: true,
   });
+
   const [filter, setFilter] = useState<IFilter>({
     Brightness: 0,
     Saturation: 0,
