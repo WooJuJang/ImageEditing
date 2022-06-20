@@ -1,36 +1,24 @@
-import Paper, { Group, Path, Point, PointText, Raster, Rectangle, Shape, Size, Layer } from 'paper';
+import Paper, { Group, Layer, Path, Point, PointText, Raster, Rectangle, Shape, Size } from 'paper';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { ICursorList } from '../PaperTypes';
-import { IFilter, IImplantInput, ICanvasHistory, IDetail } from './EditCanvas';
 import PreviewModal from './PreviewModal';
 import TextModal from './TextModal';
+import {
+  IInitCanvasSize,
+  IEditField,
+  IXY,
+  ILogEditLayer,
+  ICanvasSize,
+  historyType,
+  ICurrentScale,
+  ICanvasHistory,
+  IFilter,
+  IImplantInput,
+  propsType,
+  refType,
+  ToolType,
+} from '../types';
 
-interface IInitCanvasSize {
-  width: number;
-  height: number;
-}
-interface IEditField {
-  group?: paper.Group;
-  pointText?: paper.PointText;
-}
-interface IXY {
-  x: number;
-  y: number;
-}
-// const initCanvasWidth = 1000;
-// const initCanvasHeight = 750;
-interface ILogEditLayer {
-  log: string;
-  value: paper.Point | number | IXY;
-}
-export interface ICanvasSize {
-  width: number;
-  height: number;
-}
-export interface ICanvasScale {
-  scaleX: number;
-  scaleY: number;
-}
 const iconSize = {
   width: 24,
   height: 24,
@@ -57,45 +45,11 @@ export const ToolKey = [
   'cropTool',
   'layerMoveTool',
 ] as const;
-export type formatTool = typeof ToolKey[number];
-
-type propsType = {
-  view: number[];
-  canvasIndex: number;
-  action: formatTool;
-  width: number;
-  height: number;
-  surface: number;
-  scaleX: number;
-  scaleY: number;
-  viewX: number;
-  viewY: number;
-  currColor: string;
-  size: number;
-  implantOpen: boolean;
-  currToothImageUrl: string;
-  filter: IFilter;
-  setFilter: (value: IFilter) => void;
-  initCanvasSize: IInitCanvasSize;
-  setIsViewOriginal: (value: boolean) => void;
-  isViewOriginal: boolean;
-  deletePhoto: (value: number) => void;
-  setCurrentCanvasIndex: (value: number) => void;
-  // setCanvasHistory: (value: ICanvasHistory[]) => void;
-  canvasHistory: ICanvasHistory[];
-  canvasSize: ICanvasSize;
-  setImplantInput: (value: IImplantInput) => void;
-  detail: IDetail | undefined;
-};
-export type refType = {
-  // hello: () => void;
-};
 
 interface ILayers {
   background: paper.Layer;
   underlay: paper.Layer;
   sketch: paper.Layer;
-  // overlay: paper.Layer;
 }
 const overlayKey = ['preview', 'visible', 'upload', 'subtract'];
 const assetsKey = ['scale', 'scalev', 'scaleh', 'preview', 'visible', 'upload', 'subtract'] as const;
@@ -129,9 +83,6 @@ let currText: string;
 let cropCircleButton: paper.Shape;
 let isEditText = false;
 let hitResult: paper.HitResult;
-let overlayGroup: paper.Group;
-
-// const overlaySVGArr: overlaySVGArrType[] = [];
 
 let crownImage: paper.Group;
 let implantImage: paper.Group;
@@ -139,54 +90,12 @@ let moveArea: paper.Shape;
 let rotateArea: paper.Shape;
 let unitePath: paper.PathItem;
 
-// let initScaleX = 1;
-
-export interface historyType {
-  isCrop: boolean;
-  sketchHistory: string;
-  background: string;
-}
-export interface ICurrentScale {
-  width: number;
-  height: number;
-
-  distanceScaleWidth: number;
-  distanceScaleHeight: number;
-
-  PhotoWidth: number;
-  PhotoHeight: number;
-}
-// const undoHistoryArr: historyType[] = [];
 let scaleWidth = 1;
 let scaleHeight = 1;
-// let currentScale: ICurrentScale[] = [
-//   {
-//     width: 1,
-//     height: 1,
 
-//     distanceScaleWidth: 1,
-//     distanceScaleHeight: 1,
-//   },
-// ];
-
-// let initImageBounds: paper.Rectangle;
 let itemBounds: paper.Rectangle;
 let diffWidth: number;
 let diffHeight: number;
-
-// let translateX = 0;
-// let translateY = 0;
-
-const findLayer = (paper: paper.PaperScope, name: string): paper.Layer => {
-  let result!: paper.Layer;
-  paper.project.layers.forEach((layer: paper.Layer) => {
-    if (layer.name === name) {
-      result = layer;
-    }
-    return null;
-  });
-  return result;
-};
 
 const moveItem = (item: paper.Item, event: paper.ToolEvent) => {
   item.position.x += event.delta.x;
@@ -520,82 +429,6 @@ const makeCropEditField = () => {
   group.addChild(editCropGroup);
 };
 
-const setUnderlay = (paper: paper.PaperScope, initCanvasSize: IInitCanvasSize, canvasIndex: number, surface: number) => {
-  paper.activate();
-  paper.project.view.matrix.reset();
-  let beforeImage = new Group();
-  findLayer(paper, 'underlay').removeChildren();
-  findLayer(paper, 'underlay').addChild(beforeImage);
-
-  const number = new PointText({
-    point: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
-    fontSize: 24,
-    fontWeight: 'bold',
-    justification: 'center',
-    fillColor: 'green',
-  });
-  number.content = String(canvasIndex + 1);
-  number.fitBounds(
-    new Rectangle({
-      x: paper.view.bounds.width * 0.25,
-      y: paper.view.bounds.height * 0.25,
-      width: paper.view.bounds.width * 0.5,
-      height: paper.view.bounds.height * 0.5,
-    })
-  );
-  const message = new PointText({
-    point: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
-    fontSize: 24,
-    justification: 'center',
-    fillColor: 'green',
-  });
-  message.content = '*Select image';
-  message.fitBounds(
-    new Rectangle({
-      x: paper.view.bounds.width * 0.35,
-      y: paper.view.bounds.height * 0.7,
-      width: paper.view.bounds.width * 0.3,
-      height: paper.view.bounds.height * 0.15,
-    })
-  );
-
-  beforeImage.addChild(number);
-  beforeImage.addChild(message);
-
-  beforeImage.locked = true;
-};
-// const importOverlaySVG = (paper: paper.PaperScope) => {
-//   return new Promise((resolve) => {
-//     overlayKey.forEach((key, index) => {
-//       const tempItem = new Group();
-//       tempItem.data = 'aaaaaa';
-//       tempItem.importSVG(assets[key as formatAssetKey], (item: paper.Item) => {
-//         item.position.x += iconSize.width * index;
-//         item.data = { type: key };
-//         findLayer(paper, 'overlay').firstChild.addChild(item);
-//         if (findLayer(paper, 'overlay').firstChild.children.length === overlayKey.length) {
-//           findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
-//           resolve('overlayDone');
-//         }
-//       });
-//       tempItem.remove();
-//     });
-//   });
-// };
-
-// const setOverlay = (view: number, paper: paper.PaperScope) => {
-//   findLayer(paper, 'overlay').matrix.reset();
-//   findLayer(paper, 'overlay').matrix.scale(1 / view);
-
-//   const overlayW = findLayer(paper, 'overlay').bounds.width;
-//   const overlayH = findLayer(paper, 'overlay').bounds.height;
-
-//   findLayer(paper, 'overlay').position = new Point(
-//     paper.view.bounds.topRight.x - overlayW / 2,
-//     paper.view.bounds.topRight.y + overlayH / 2
-//   );
-// };
-
 /*
 ##################################################################################################
 ##################################################################################################
@@ -611,9 +444,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     action,
     width,
     height,
-    viewX,
     viewY,
-    surface,
     currColor,
     currToothImageUrl,
     size,
@@ -630,7 +461,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const paper = useMemo(() => new Paper.PaperScope(), []);
 
-  type ToolType = { [k in formatTool]: paper.Tool };
   const Tools: ToolType = useMemo(
     () => ({
       penTool: new paper.Tool(),
@@ -651,6 +481,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
   const currentImage = useRef<string>('');
   const [layers, setLayers] = useState<ILayers>();
+
   const sketchIndex = useRef<number>(-1);
   const [r, g, b] = currColor.split(',');
   const fillColor = `${r},${g},${b},0.1)`;
@@ -688,36 +519,145 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     width: 1200,
     height: 750,
   });
-  // const [isOverlaySVG, setIsOverlaySVG] = useState(false);
   const undoHistoryArr = useRef<historyType[]>([]);
   const scaleIndex = useRef<number>(0);
   const [isMouseIn, setIsMouseIn] = useState(false);
-  // const editLayer = useRef({
-  //   center: new Point(0, 0),
-  //   flip: {
-  //     x: 1,
-  //     y: 1,
-  //   },
-  //   zoom: {
-  //     x: 1,
-  //     y: 1,
-  //   },
-  //   rotate: 0,
-  // });
+
   const logEditLayer = useRef<ILogEditLayer[]>([]);
-  const importHistory = useCallback((canvasHistory: ICanvasHistory[], canvasIndex: number, paper: paper.PaperScope) => {
-    undoHistoryArr.current = canvasHistory[canvasIndex].history;
-    sketchIndex.current = canvasHistory[canvasIndex].sketchIndex;
-    scaleIndex.current = canvasHistory[canvasIndex].scaleIndex;
-    scaleArr.current = canvasHistory[canvasIndex].scaleArr;
 
-    findLayer(paper, 'background').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].background);
-    findLayer(paper, 'sketch').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].sketchHistory);
+  const findLayer = useCallback(
+    (name: string): paper.Item => {
+      return paper.project.getItem({ name: name });
+    },
+    [paper]
+  );
 
-    currentImage.current = canvasHistory[canvasIndex].imageUrl;
-    findLayer(paper, 'underlay').visible = true;
-    findLayer(paper, 'sketch').visible = true;
-  }, []);
+  const setUnderlay = useCallback(
+    (paper: paper.PaperScope, initCanvasSize: IInitCanvasSize, canvasIndex: number) => {
+      paper.activate();
+      paper.project.view.matrix.reset();
+      let beforeImage = new Group();
+      findLayer('underlay').removeChildren();
+      findLayer('underlay').addChild(beforeImage);
+
+      const number = new PointText({
+        point: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
+        fontSize: 24,
+        fontWeight: 'bold',
+        justification: 'center',
+        fillColor: 'green',
+      });
+      number.content = String(canvasIndex + 1);
+      number.fitBounds(
+        new Rectangle({
+          x: paper.view.bounds.width * 0.25,
+          y: paper.view.bounds.height * 0.25,
+          width: paper.view.bounds.width * 0.5,
+          height: paper.view.bounds.height * 0.5,
+        })
+      );
+      const message = new PointText({
+        point: new Point(initCanvasSize.width / 2, initCanvasSize.height / 2),
+        fontSize: 24,
+        justification: 'center',
+        fillColor: 'green',
+      });
+      message.content = '*Select image';
+      message.fitBounds(
+        new Rectangle({
+          x: paper.view.bounds.width * 0.35,
+          y: paper.view.bounds.height * 0.7,
+          width: paper.view.bounds.width * 0.3,
+          height: paper.view.bounds.height * 0.15,
+        })
+      );
+
+      beforeImage.addChild(number);
+      beforeImage.addChild(message);
+
+      beforeImage.locked = true;
+    },
+    [findLayer]
+  );
+  const importHistory = useCallback(
+    (canvasHistory: ICanvasHistory[], canvasIndex: number, paper: paper.PaperScope) => {
+      undoHistoryArr.current = canvasHistory[canvasIndex].history;
+      sketchIndex.current = canvasHistory[canvasIndex].sketchIndex;
+      scaleIndex.current = canvasHistory[canvasIndex].scaleIndex;
+      scaleArr.current = canvasHistory[canvasIndex].scaleArr;
+
+      findLayer('background').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].background);
+      findLayer('sketch').importJSON(canvasHistory[canvasIndex].history[sketchIndex.current].sketchHistory);
+
+      currentImage.current = canvasHistory[canvasIndex].imageUrl;
+      findLayer('underlay').visible = true;
+      findLayer('sketch').visible = true;
+    },
+    [findLayer]
+  );
+  const setupbackground = (url: string) => {
+    paper.activate();
+    const underlay = findLayer('underlay');
+    underlay.visible = false;
+    const background = findLayer('background');
+    background.removeChildren();
+
+    let raster = new Raster({
+      crossOrigin: 'anonymous',
+      source: url,
+      position: new Point(width / 2, height / 2),
+      locked: true,
+    });
+
+    raster.onLoad = () => {
+      raster.fitBounds(
+        new Rectangle({
+          x: 0,
+          y: 0,
+          width: 1200,
+          height: 750,
+        })
+      );
+      background.addChild(raster);
+
+      if (isSettingPhoto.current) {
+        scaleArr.current[0].PhotoWidth = background.bounds.width;
+        scaleArr.current[0].PhotoHeight = background.bounds.height;
+        isSettingPhoto.current = false;
+      }
+      currBackgroundSize.current.center = background.bounds.center;
+      currBackgroundSize.current.width = background.bounds.width;
+      currBackgroundSize.current.height = background.bounds.height;
+      fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
+      makeNewLayer(false);
+    };
+  };
+
+  const changeScale = (num: number) => {
+    const tempSketchIndex = num > 0 ? sketchIndex.current + 1 : sketchIndex.current;
+    if (undoHistoryArr.current[tempSketchIndex] && undoHistoryArr.current[tempSketchIndex].isCrop) {
+      scaleIndex.current += num;
+      currBackgroundSize.current.width = scaleArr.current[scaleIndex.current].PhotoWidth;
+      currBackgroundSize.current.height = scaleArr.current[scaleIndex.current].PhotoHeight;
+    }
+
+    sketchIndex.current += num;
+  };
+
+  const changeSketch = (state: string) => {
+    const background = findLayer('background');
+    const sketch = findLayer('sketch');
+    sketch.visible = true;
+    if (state === 'undo') {
+      changeScale(-1);
+    } else if (state === 'redo') {
+      changeScale(1);
+    }
+    background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
+    sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
+    background.applyMatrix = true;
+    sketch.applyMatrix = true;
+  };
   const applyFilter = (filter: IFilter) => {
     if (!canvasRef.current) {
       return;
@@ -760,8 +700,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     undoHistoryArr.current.splice(tempSketchIndex + 1);
   };
   const saveOriginal = () => {
-    const back = findLayer(paper, 'background').exportJSON();
-    const sketch = findLayer(paper, 'sketch').exportJSON();
+    const back = findLayer('background').exportJSON();
+    const sketch = findLayer('sketch').exportJSON();
     setIsScreenShot(false);
     return { photo: {}, data: sketch, background: back, tools: canvasHistory[canvasIndex].filter, canvas: canvasRef.current };
   };
@@ -801,102 +741,78 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const fitLayerInView = useCallback(
     (paper: paper.PaperScope, viewY: number, canvasSizeWidth: number, canvasSizeHeight: number) => {
       paper.project.view.matrix.reset();
+      console.log(viewY, canvasSizeWidth, canvasSizeHeight);
       paper.project.view.viewSize = new Size(canvasSizeWidth, viewY);
 
       applyFilter(canvasHistory[canvasIndex].filter);
-
       if (!currentImage.current) {
         currBackgroundSize.current.center = new Point(canvasSizeWidth / 2, canvasSizeHeight / 2);
         currBackgroundSize.current.width = canvasSizeWidth;
         currBackgroundSize.current.height = canvasSizeHeight;
-
-        // findLayer(paper, 'overlay').position = new Point(
-        //   canvasSizeWidth - iconSize.width * 4,
-        //   findLayer(paper, 'overlay').bounds.height / 2
-        // );
         return;
       }
-
       const viewW = paper.view.bounds.width / currBackgroundSize.current.width;
       const viewH = paper.view.bounds.height / currBackgroundSize.current.height;
-
       if (currBackgroundSize.current.width > currBackgroundSize.current.height) {
         paper.view.scale(viewW, new Point(0, 0));
-        if (paper.view.bounds.height < findLayer(paper, 'background').bounds.height) {
+        if (paper.view.bounds.height < findLayer('background').bounds.height) {
           paper.view.matrix.reset();
-          paper.view.scale(1 / viewW, new Point(0, 0));
+          // paper.view.scale(1 / viewW, new Point(0, 0));
           paper.view.scale(viewH, new Point(0, 0));
           if (isHistory.current) {
             isHistory.current = false;
-
             currBackgroundSize.current.center = new Point(600, 375);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
-          // setOverlay(viewH, paper);
         } else {
           if (isHistory.current) {
             isHistory.current = false;
-
             currBackgroundSize.current.center = new Point(600, 375);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
-          // setOverlay(viewW, paper);
         }
       } else {
         paper.view.scale(viewH, new Point(0, 0));
-        if (paper.view.bounds.width < findLayer(paper, 'background').bounds.width) {
+        if (paper.view.bounds.width < findLayer('background').bounds.width) {
           paper.view.matrix.reset();
-          paper.view.scale(1 / viewH, new Point(0, 0));
+          // paper.view.scale(1 / viewH, new Point(0, 0));
           paper.view.scale(viewW, new Point(0, 0));
           if (isHistory.current) {
             isHistory.current = false;
-
             currBackgroundSize.current.center = new Point(600, 375);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
-          // setOverlay(viewW, paper);
         } else {
           if (isHistory.current) {
             isHistory.current = false;
-
             currBackgroundSize.current.center = new Point(600, 375);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
-          // setOverlay(viewH, paper);
         }
       }
     },
-    [canvasHistory, canvasIndex]
+    [canvasHistory, canvasIndex, findLayer]
   );
   const makeNewLayer = useCallback(
     (crop: boolean) => {
-      const currChildren = findLayer(paper, 'sketch').exportJSON();
-      const currBackground = findLayer(paper, 'background').exportJSON();
+      const currChildren = findLayer('sketch').exportJSON();
+      const currBackground = findLayer('background').exportJSON();
       undoHistoryArr.current.push({ isCrop: crop, sketchHistory: currChildren, background: currBackground });
       sketchIndex.current += 1;
     },
-    [paper]
+    [findLayer]
   );
+
   const settingBackground = useCallback(
-    (
-      paper: paper.PaperScope,
-      width: number,
-      height: number,
-      viewXSize: number,
-      viewYSize: number,
-      // url: string,
-      isSurface: boolean,
-
-      canvasSize: ICanvasSize
-    ) => {
+    (paper: paper.PaperScope, viewYSize: number, canvasSize: ICanvasSize) => {
       if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
-        currBackgroundSize.current.center = findLayer(paper, 'background').bounds.center;
-        currBackgroundSize.current.width = findLayer(paper, 'background').bounds.width;
-        currBackgroundSize.current.height = findLayer(paper, 'background').bounds.height;
-
+        currBackgroundSize.current.center = findLayer('background').bounds.center;
+        currBackgroundSize.current.width = findLayer('background').bounds.width;
+        currBackgroundSize.current.height = findLayer('background').bounds.height;
         fitLayerInView(paper, viewYSize, canvasSize.width, canvasSize.height);
       } else {
         //반응형, surface 변경 ,레이어 적용되게
+
         fitLayerInView(paper, viewYSize, canvasSize.width, canvasSize.height);
         if (logEditLayer.current.length > 0) {
           logEditLayer.current.forEach((data) => {
@@ -911,58 +827,9 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
             }
           });
         }
-        // paper.view.scale(editLayer.current.zoom.x * editLayer.current.flip.x, editLayer.current.zoom.y * editLayer.current.flip.y);
-        // paper.view.rotate(editLayer.current.rotate);
-        // paper.view.scale(-1, 1);
-        // paper.view.rotate(-90);
-        // console.log(paper.view.scaling, editLayer.current.zoom, editLayer.current.flip);
-        // paper.view.scale(editLayer.current.zoom.x * editLayer.current.flip.x, editLayer.current.zoom.y * editLayer.current.flip.y);
-
-        // findLayer(paper, 'background').applyMatrix = true;
-        // paper.view.matrix.translate(paper.view.bounds.center.subtract(findLayer(paper, 'background').bounds.center));
-        // paper.activate();
-        // const underlay = findLayer(paper, 'underlay');
-        // underlay.visible = false;
-        // const background = findLayer(paper, 'background');
-        // background.removeChildren();
-        // let raster = new Raster({
-        //   crossOrigin: 'anonymous',
-        //   source: url,
-        //   position: new Point(width / 2, height / 2),
-        //   locked: true,
-        // });
-        // raster.onLoad = () => {
-        //   raster.fitBounds(
-        //     new Rectangle({
-        //       x: 0,
-        //       y: 0,
-        //       // width: viewXSize,
-        //       // height: viewYSize,
-        //       width: 1200,
-        //       height: 750,
-        //     })
-        //   );
-        //   background.addChild(raster);
-        //   if (isSettingPhoto.current) {
-        //     scaleArr.current[0].PhotoWidth = background.bounds.width;
-        //     scaleArr.current[0].PhotoHeight = background.bounds.height;
-        //     isSettingPhoto.current = false;
-        //   }
-        //   currBackgroundSize.current.center = background.bounds.center;
-        //   currBackgroundSize.current.width = background.bounds.width;
-        //   currBackgroundSize.current.height = background.bounds.height;
-        // fitLayerInView(paper, viewYSize, canvasSize.width, canvasSize.height);
-        // findLayer(paper, 'background').applyMatrix = true;
-        // findLayer(paper, 'sketch').applyMatrix = true;
-        // paper.view.scale(editLayer.current.zoom.x * editLayer.current.flip.x, editLayer.current.zoom.y * editLayer.current.flip.y);
-
-        //   if (!isSurface) {
-        //     makeNewLayer(false);
-        //   }
-        // };
       }
     },
-    [fitLayerInView, makeNewLayer]
+    [fitLayerInView, findLayer]
   );
 
   const crop = (item: paper.Item, layers: ILayers, paper: paper.PaperScope) => {
@@ -1032,7 +899,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const applyCurrentGroup = useCallback(
     (item: paper.Item) => {
       let isHistory = false;
-      findLayer(paper, 'sketch').children.forEach((child: paper.Item) => {
+      findLayer('sketch').children.forEach((child: paper.Item) => {
         if (child.className === 'Group' && child.data.type === 'history') {
           child.addChild(item);
           isHistory = true;
@@ -1041,10 +908,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       if (!isHistory) {
         history.removeChildren();
         history.addChild(item);
-        findLayer(paper, 'sketch').addChild(history);
+        findLayer('sketch').addChild(history);
       }
     },
-    [paper]
+    [findLayer]
   );
 
   const makeImplant = (implantInput: IImplantInput) => {
@@ -1054,7 +921,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
 
     if (implantInput.isCrown) {
       crownImage.importSVG(implantInput.crown, (item: paper.Item) => {
-        crownImage.position = new Point(paper.view.center.x, paper.view.center.y - 85);
+        // crownImage.position = new Point(paper.view.center.x, paper.view.center.y - 85);
 
         moveArea = new Shape.Rectangle({
           point: item.children[1].firstChild.bounds.topLeft,
@@ -1064,7 +931,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           data: { type: 'crownRotateArea', option: 'rotate' },
         });
 
-        crownImage.applyMatrix = false;
+        // crownImage.applyMatrix = false;
         group.addChild(crownImage);
         group.addChild(moveArea);
       });
@@ -1072,7 +939,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     implantImage.importSVG(implantInput.implantImage, (item: paper.Item) => {
       unitePath = new Path();
 
-      item.position = paper.view.center;
+      // item.position = paper.view.center;
 
       if (item.className === 'Group') {
         unitePath = unitePath.unite(item.children[1].firstChild as paper.PathItem);
@@ -1106,7 +973,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       group.addChild(implantImage);
       group.addChild(rotateArea);
       group.addChild(moveArea);
+      group.applyMatrix = true;
 
+      group.translate(new Point(findLayer('background').bounds.width / 2, findLayer('background').bounds.height / 2));
+      crownImage.position = new Point(group.bounds.center.x, group.bounds.center.y - 85);
       if (implantInput.isTooltip) {
         pointText = new PointText({
           content: implantInput.tooltip,
@@ -1129,14 +999,17 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         if (implantInput.isTooltip) moveImplantInfo(group, 180);
       }
       unitePath.remove();
+
       const implantGroup = implantInput.isTooltip ? new Group([group, pointText]) : new Group([group]);
 
       implantGroup.scale(scaleArr.current[scaleIndex.current].distanceScaleWidth, scaleArr.current[scaleIndex.current].distanceScaleHeight);
+
       applyCurrentGroup(implantGroup);
       makeNewLayer(false);
     });
   };
   Tools.penTool.onMouseDown = (event: paper.ToolEvent): void => {
+    if (!currentImage.current) return;
     paper.settings.handleSize = 0;
     path = new Path({
       strokeColor: currColor,
@@ -1145,16 +1018,19 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     });
   };
   Tools.penTool.onMouseMove = (event: paper.ToolEvent) => {
+    if (!currentImage.current) return;
     if (event.item) {
       Tools.moveTool.activate();
     }
   };
   Tools.penTool.onMouseDrag = (event: paper.ToolEvent) => {
+    if (!currentImage.current) return;
     path.add(event.point);
     isDrag = true;
   };
 
   Tools.penTool.onMouseUp = (event: paper.ToolEvent) => {
+    if (!currentImage.current) return;
     path.data.handleSize = 0;
     path.simplify();
     addHistory();
@@ -1326,7 +1202,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   Tools.textTool.onMouseUp = (event: paper.ToolEvent) => {
     if (shape.bounds.width > 5 && shape.bounds.height > 5) {
       isEditText = false;
-
       setTextBox({ x: (event as any).event.clientX, y: (event as any).event.clientY });
 
       setIsTextBoxOpen(true);
@@ -1416,53 +1291,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         }
       });
     }
-    // else if (event.item.data.type === 'overlayGroup') {
-    //   event.item.children.forEach((child: paper.Item) => {
-    //     if (child.contains(findLayer(paper, 'overlay').matrix.inverseTransform(event.point))) {
-    //       const type = child.data.type;
-    //       if (type === 'subtract') {
-    //         findLayer(paper, 'underlay').visible = true;
-    //         findLayer(paper, 'background').removeChildren();
-
-    //         findLayer(paper, 'sketch').removeChildren();
-    //         deletePhoto(canvasIndex);
-    //         undoHistoryArr.current.splice(0, undoHistoryArr.current.length);
-    //         scaleIndex.current = 0;
-    //         sketchIndex.current = -1;
-    //         currentImage.current = '';
-
-    //         findLayer(paper, 'underlay').visible = true;
-    //         findLayer(paper, 'sketch').visible = false;
-    //         fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
-    //         setUnderlay(paper, initCanvasSize, canvasIndex, surface);
-    //         setOverlay(1, paper);
-    //         findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
-
-    //         option = 'subtract';
-    //       } else if (type === 'visible') {
-    //         findLayer(paper, 'sketch').visible = !findLayer(paper, 'sketch').visible;
-    //       } else if (type === 'upload') {
-    //         setIsScreenShot(!isScreenShot);
-    //         setScreenShotLocation({
-    //           left: (event as any).event.clientX,
-    //           top: (event as any).event.clientY,
-    //         });
-    //       } else if (type === 'preview') {
-    //         if (currentImage.current) {
-    //           findLayer(paper, 'overlay').visible = false;
-
-    //           paper.view.update();
-
-    //           paper.view.element.toBlob((blob: any) => {
-    //             const url = URL.createObjectURL(blob);
-    //             setPreviewUrl(url);
-    //             setIsPreview(true);
-    //           });
-    //         }
-    //       }
-    //     }
-    //   });
-    // }
   };
 
   Tools.moveTool.onMouseMove = (event: paper.ToolEvent) => {
@@ -1473,15 +1301,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     if (event.item) {
       paper.settings.handleSize = hitResult.item.data.handleSize;
       hitResult.item.selected = true;
-      // if (event.item.data.type === 'overlayGroup') {
-      //   event.item.children.forEach((child: paper.Item) => {
-      //     if (child.contains(event.point)) {
-      //       if (child.data.type === 'subtract') {
-      //         // layers?.background.remove();
-      //       }
-      //     }
-      //   });
-      // }
 
       if (hitResult.item.parent.data.type === 'PointText' || hitResult.item.parent.data.type === 'implant') {
         paper.settings.hitTolerance = 8;
@@ -1521,9 +1340,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   Tools.moveTool.onMouseDrag = (event: paper.ToolEvent) => {
     paper.settings.hitTolerance = 8;
     if (isLayerMove && !event.item && !hitResult) {
-      findLayer(paper, 'sketch').view.translate(event.middlePoint.subtract(event.downPoint));
-      // editLayer.current.center = paper.view.bounds.center;
-      // findLayer(paper, 'overlay').translate(event.downPoint.subtract(event.middlePoint));
+      findLayer('sketch').view.translate(event.middlePoint.subtract(event.downPoint));
     }
     if (!item) return;
     if (item?.data.handleSize === 0) {
@@ -1574,7 +1391,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
             to = new Point(origin.bounds.bottomLeft);
           }
 
-          findLayer(paper, 'sketch').children.forEach((child) => {
+          findLayer('sketch').children.forEach((child) => {
             if (child.data.type === 'crop') {
               child.remove();
               // origin.remove();
@@ -1649,7 +1466,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     const bounds = shape.bounds;
     shape.remove();
     origin.remove();
-    findLayer(paper, 'sketch').children.forEach((child: paper.Item) => {
+    findLayer('sketch').children.forEach((child: paper.Item) => {
       if (child.className === 'Group' && child.data.type === 'history') {
         child.children.forEach((child: paper.Item) => {
           if (child.intersects(new Shape.Rectangle(bounds))) {
@@ -1702,8 +1519,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     Tools.moveTool.activate();
   };
   Tools.rulerTool.onMouseDown = (event: paper.ToolEvent) => {
-    if (!layers) return;
-
     path = new Path.Line({
       from: event.point,
       to: event.point,
@@ -1725,7 +1540,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
   };
   Tools.rulerTool.onMouseDrag = (event: paper.ToolEvent) => {
-    if (!layers) return;
     path.segments[1].point = event.point;
   };
   Tools.rulerTool.onMouseUp = (event: paper.ToolEvent) => {
@@ -1793,8 +1607,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     }
     const canvas = canvasRef.current;
     paper.setup(canvas);
-    const background = new Layer();
 
+    const background = new Layer();
     background.name = 'background';
     background.applyMatrix = false;
     const underlay = new Layer();
@@ -1803,19 +1617,10 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     const sketch = new Layer();
     sketch.name = 'sketch';
     sketch.applyMatrix = false;
-    // const overlay = new Layer();
-    // overlay.name = 'overlay';
-    // overlay.applyMatrix = false;
-    // overlay.visible = false;
-    // overlayGroup = new Group({
-    //   data: { type: 'overlayGroup' },
-    // });
-    // overlay.addChild(overlayGroup);
 
     paper.project.addLayer(background);
     paper.project.addLayer(underlay);
     paper.project.addLayer(sketch);
-    // paper.project.addLayer(overlay);
     sketch.activate();
 
     history = new Group({
@@ -1832,78 +1637,52 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       background: background,
       underlay: underlay,
       sketch: sketch,
-      // overlay: overlay,
     });
 
-    // (async () => {
-    //   const a = await importOverlaySVG(paper);
-    //   if (a) setIsOverlaySVG(true);
-    // })();
     if (canvasHistory[canvasIndex].history.length > 0) {
       isHistory.current = true;
       importHistory(canvasHistory, canvasIndex, paper);
     }
+    sketch.visible = false;
 
     return () => {
       if (!canvasHistory[canvasIndex].imageUrl) return;
       paper.view.bounds.x = 0;
       paper.view.bounds.y = 0;
-      const tempCanvasHistory = [...canvasHistory];
       const data = undoHistoryArr.current;
 
-      tempCanvasHistory[canvasIndex].imageUrl = currentImage.current;
-      tempCanvasHistory[canvasIndex].history = data;
-      tempCanvasHistory[canvasIndex].scaleIndex = scaleIndex.current;
-      tempCanvasHistory[canvasIndex].sketchIndex = sketchIndex.current;
-      tempCanvasHistory[canvasIndex].scaleArr = scaleArr.current;
-
-      // tempCanvasHistory[canvasIndex].filter = currCanvasFilter.current;
+      canvasHistory[canvasIndex].imageUrl = currentImage.current;
+      canvasHistory[canvasIndex].history = data;
+      canvasHistory[canvasIndex].scaleIndex = scaleIndex.current;
+      canvasHistory[canvasIndex].sketchIndex = sketchIndex.current;
+      canvasHistory[canvasIndex].scaleArr = scaleArr.current;
     };
   }, [paper, importHistory, canvasHistory, canvasIndex]);
 
   useEffect(() => {
     if (currentImage.current) {
-      // if (!isOverlaySVG) return;
-      findLayer(paper, 'sketch').visible = isViewOriginal;
-      //paper.view.matrix.reset();
-      settingBackground(paper, width, height, viewX, viewY, false, canvasSize); //image.current굳이 안써도 됨
+      findLayer('sketch').visible = isViewOriginal;
+      settingBackground(paper, viewY, canvasSize);
     } else {
-      findLayer(paper, 'underlay').visible = true;
-      findLayer(paper, 'sketch').visible = false;
+      findLayer('underlay').visible = true;
+      findLayer('sketch').visible = false;
       fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
-      setUnderlay(paper, initCanvasSize, canvasIndex, surface);
-      // findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
-    }
-    if (!canvasRef.current) {
-      return;
+      setUnderlay(paper, canvasSize, canvasIndex);
     }
     const canvas = canvasRef.current;
+    if (!canvas) return;
     setCanvasRect({
       x: canvas.getBoundingClientRect().x,
       y: canvas.getBoundingClientRect().y,
       width: canvas.getBoundingClientRect().width,
       height: canvas.getBoundingClientRect().height,
     });
-  }, [
-    // isOverlaySVG,
-    width,
-    height,
-    viewX,
-    viewY,
-    fitLayerInView,
-
-    canvasSize.width,
-    canvasSize.height,
-    paper,
-    settingBackground,
-    isViewOriginal,
-    canvasIndex,
-    surface,
-    initCanvasSize,
-  ]);
+  }, [viewY, fitLayerInView, canvasSize, paper, settingBackground, isViewOriginal, canvasIndex, findLayer, setUnderlay]);
 
   useEffect(() => {
-    if (!currentImage.current) return;
+    if (!currentImage.current) {
+      return;
+    }
     if (isTextBoxOpen) {
       if (isEditText) {
         item?.parent?.parent?.children.forEach((child) => {
@@ -1916,7 +1695,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           }
         });
       } else {
-        findLayer(paper, 'sketch').children.forEach((child) => {
+        findLayer('sketch').children.forEach((child) => {
           if (child.data.PointTextId === pointTextId && child.data.type === 'text') {
             (child as paper.PointText).content = text;
             child.strokeScaling = true;
@@ -1951,111 +1730,45 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         }
       }
     }
-  }, [isTextBoxOpen, text, makeNewLayer, paper, applyCurrentGroup]);
-  const setupbackground = (url: string) => {
-    paper.activate();
-    const underlay = findLayer(paper, 'underlay');
-    underlay.visible = false;
-    const background = findLayer(paper, 'background');
-    background.removeChildren();
+  }, [isTextBoxOpen, text, makeNewLayer, applyCurrentGroup, findLayer]);
 
-    let raster = new Raster({
-      crossOrigin: 'anonymous',
-      source: url,
-      position: new Point(width / 2, height / 2),
-      locked: true,
-    });
-
-    raster.onLoad = () => {
-      raster.fitBounds(
-        new Rectangle({
-          x: 0,
-          y: 0,
-
-          // width: viewXSize,
-          // height: viewYSize,
-          width: 1200,
-          height: 750,
-        })
-      );
-      background.addChild(raster);
-
-      if (isSettingPhoto.current) {
-        scaleArr.current[0].PhotoWidth = background.bounds.width;
-        scaleArr.current[0].PhotoHeight = background.bounds.height;
-        isSettingPhoto.current = false;
-      }
-      currBackgroundSize.current.center = background.bounds.center;
-      currBackgroundSize.current.width = background.bounds.width;
-      currBackgroundSize.current.height = background.bounds.height;
-      fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
-      makeNewLayer(false);
-    };
-  };
   useImperativeHandle(ref, () => ({
     settingPhoto(url: string) {
-      if (!layers) return;
       paper.activate();
 
       isSettingPhoto.current = true;
       setupbackground(url);
-      //  settingBackground(paper, width, height, viewX, viewY, url, false, canvasSize);
 
       currentImage.current = url;
 
       const tempCanvasHistory: ICanvasHistory[] = [...canvasHistory];
       tempCanvasHistory[canvasIndex].imageUrl = url;
-
-      layers.sketch.visible = true;
+      findLayer('sketch').visible = true;
     },
 
-    actionTool(action: formatTool) {
-      Tools[action].activate();
-    },
     undoHistory() {
-      if (!layers) return;
       if (!undoHistoryArr.current || sketchIndex.current <= 0) return;
-      layers.sketch.removeChildren();
-      layers.sketch.visible = true;
-      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
-        scaleIndex.current -= 1;
-        currBackgroundSize.current.width = scaleArr.current[scaleIndex.current].PhotoWidth;
-        currBackgroundSize.current.height = scaleArr.current[scaleIndex.current].PhotoHeight;
-      }
-      sketchIndex.current -= 1;
-      layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
-      layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
-      layers.background.applyMatrix = true;
-      layers.sketch.applyMatrix = true;
+
+      changeSketch('undo');
     },
     redoHistory() {
-      if (!layers) return;
       if (!undoHistoryArr.current || sketchIndex.current >= undoHistoryArr.current.length - 1) return;
-      sketchIndex.current += 1;
-      layers.sketch.visible = true;
-      if (undoHistoryArr.current[sketchIndex.current] && undoHistoryArr.current[sketchIndex.current].isCrop) {
-        scaleIndex.current += 1;
-        currBackgroundSize.current.width = scaleArr.current[scaleIndex.current].PhotoWidth;
-        currBackgroundSize.current.height = scaleArr.current[scaleIndex.current].PhotoHeight;
-      }
-      layers.sketch.importJSON(undoHistoryArr.current[sketchIndex.current].sketchHistory);
-      layers.background.importJSON(undoHistoryArr.current[sketchIndex.current].background);
-      layers.background.applyMatrix = true;
-      layers.sketch.applyMatrix = true;
+
+      changeSketch('redo');
     },
     erase() {
       Tools.partClearTool.activate();
     },
     clear() {
-      if (!layers) return;
-      layers.sketch.removeChildren();
+      findLayer('sketch').removeChildren();
 
       makeNewLayer(false);
     },
     implantInput(implantInput: IImplantInput) {
+      if (!currentImage.current) return;
       paper.activate();
-      if (!layers) return;
       removeHistory(sketchIndex.current);
+
       makeImplant(implantInput);
       setImplantInput({
         crown: '',
@@ -2068,50 +1781,34 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       Tools.moveTool.activate();
     },
     reset() {
-      findLayer(paper, 'sketch').view.matrix.reset();
-      // findLayer(paper, 'overlay').matrix.tx = 0;
-      // findLayer(paper, 'overlay').matrix.ty = 0;
-      // editLayer.current = {
-      //   center: new Point(0, 0),
-      //   flip: {
-      //     x: 0,
-      //     y: 0,
-      //   },
-      //   zoom: {
-      //     x: 0,
-      //     y: 0,
-      //   },
-      //   rotate: 0,
-      // };
+      findLayer('sketch').view.matrix.reset();
+
       fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
       logEditLayer.current = [];
+      setInitScale({ x: 1, y: 1 });
     },
     move() {
       setIsLayerMove(true);
     },
     flip(x: number, y: number) {
-      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(paper.view.bounds.center));
-      // editLayer.current.flip = { x: x, y: y };
+      paper.view.matrix.scale(x, y, findLayer('background').bounds.center);
       logEditLayer.current.push({ log: 'flip', value: { x: x, y: y } });
-      // findLayer(paper, 'overlay').scale(x, y, new Point(paper.view.bounds.center));
     },
     zoom(x: number, y: number) {
       const scaleValueX = initScale.x * x;
       const scaleValueY = initScale.y * y;
       if (scaleValueX > 4 || scaleValueX < 0.25) return;
       setInitScale({ x: scaleValueX, y: scaleValueY });
-      findLayer(paper, 'sketch').view.matrix.scale(x, y, new Point(paper.view.bounds.center));
+
+      paper.view.matrix.scale(x, y, findLayer('background').bounds.center);
       logEditLayer.current.push({ log: 'zoom', value: { x: x, y: y } });
-      // editLayer.current.zoom = { x: scaleValueX, y: scaleValueY };
-      // findLayer(paper, 'overlay').scale(1 / x, 1 / y, new Point(paper.view.bounds.center));
     },
     rotate(r: number) {
-      findLayer(paper, 'sketch').view.matrix.rotate(r, new Point(paper.view.bounds.center));
+      paper.view.matrix.rotate(r, findLayer('background').bounds.center);
       logEditLayer.current.push({ log: 'rotate', value: r });
-      // editLayer.current.rotate = r;
-      // findLayer(paper, 'overlay').rotate(-r, new Point(paper.view.bounds.center));
     },
     filter(filter: IFilter) {
+      if (!currentImage.current) return;
       applyFilter(filter);
       paper.project.activeLayer.visible = false;
       paper.project.activeLayer.visible = true;
@@ -2119,9 +1816,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       canvasHistory[canvasIndex].filter = filter;
     },
     viewOriginal(isViewOriginal: boolean) {
-      if (!layers) return;
-
-      layers.sketch.visible = isViewOriginal;
+      findLayer('sketch').visible = isViewOriginal;
     },
   }));
 
@@ -2142,8 +1837,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           setIsPreview={setIsPreview}
           width={width}
           height={height}
-          imgWidth={findLayer(paper, 'background').bounds.size.width}
-          imgHeight={findLayer(paper, 'background').bounds.size.height}
+          imgWidth={findLayer('background').bounds.size.width}
+          imgHeight={findLayer('background').bounds.size.height}
         />
       ) : (
         <></>
@@ -2163,20 +1858,17 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           setFilter(canvasHistory[canvasIndex].filter);
         }}
         onMouseEnter={() => {
-          if (!layers) return;
           if (action === 'moveTool') {
             setIsLayerMove(true);
           } else {
             setIsLayerMove(false);
           }
-
-          //findLayer(paper, 'overlay').visible = true;
+          if (!currentImage.current) return;
           Tools[action].activate();
+
           setIsMouseIn(true);
         }}
         onMouseLeave={() => {
-          // if (!layers) return;
-          // layers.overlay.visible = false;
           setIsMouseIn(false);
         }}
         onMouseUp={() => {
@@ -2191,117 +1883,85 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           left: `${canvasRect.x + canvasRect.width - iconSize.width * 4}px`,
         }}
       >
-        <button
-          type="button"
-          style={{
-            backgroundImage: 'url(/contents/preview.svg)',
-            backgroundPosition: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            position: 'absolute',
-            cursor: 'pointer',
-            width: '24px',
-            height: '24px',
-            padding: '0',
-            left: '0px',
-          }}
-          onMouseEnter={() => setIsMouseIn(true)}
-          onMouseLeave={() => setIsMouseIn(false)}
-          onClick={() => {
-            if (currentImage.current) {
-              // findLayer(paper, 'overlay').visible = false;
+        {overlayKey.map((el, i) => {
+          return (
+            <button
+              key={i}
+              type="button"
+              style={{
+                backgroundImage: `url(${assets[el as formatAssetKey]})`,
+                backgroundPosition: 'center',
+                backgroundColor: 'transparent',
+                border: 'none',
+                position: 'absolute',
+                cursor: 'pointer',
+                width: '24px',
+                height: '24px',
+                padding: '0',
+                left: `${24 * i}px`,
+              }}
+              onMouseEnter={() => setIsMouseIn(true)}
+              onMouseLeave={() => setIsMouseIn(false)}
+              onClick={(e) => {
+                if (el === 'preview') {
+                  if (currentImage.current) {
+                    fitLayerInView(paper, 750, 1200, 750);
+                    paper.view.update();
 
-              paper.view.update();
+                    paper.view.element.toBlob((blob) => {
+                      if (!blob) return;
+                      const url = URL.createObjectURL(blob);
+                      setPreviewUrl(url);
+                      setIsPreview(true);
+                      setIsMouseIn(false);
+                    });
+                    fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
+                    paper.view.update();
+                  }
+                } else if (el === 'visible') {
+                  findLayer('sketch').visible = !findLayer('sketch').visible;
+                } else if (el === 'upload') {
+                  setIsScreenShot(!isScreenShot);
+                  setScreenShotLocation({
+                    left: e.clientX,
+                    top: e.clientY,
+                  });
+                } else if (el === 'subtract') {
+                  findLayer('underlay').visible = true;
+                  findLayer('background').removeChildren();
 
-              paper.view.element.toBlob((blob: any) => {
-                const url = URL.createObjectURL(blob);
-                setPreviewUrl(url);
-                setIsPreview(true);
-              });
-            }
-          }}
-        />
-        <button
-          type="button"
-          style={{
-            backgroundImage: 'url(/contents/visible.svg)',
-            backgroundPosition: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            position: 'absolute',
-            cursor: 'pointer',
-            width: '24px',
-            height: '24px',
-            left: '24px',
-            padding: '0',
-          }}
-          onMouseEnter={() => setIsMouseIn(true)}
-          onMouseLeave={() => setIsMouseIn(false)}
-          onClick={() => {
-            findLayer(paper, 'sketch').visible = !findLayer(paper, 'sketch').visible;
-          }}
-        />
-        <button
-          type="button"
-          style={{
-            backgroundImage: 'url(/contents/save.svg)',
-            backgroundPosition: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            position: 'absolute',
-            cursor: 'pointer',
-            width: '24px',
-            height: '24px',
-            left: '48px',
-            padding: '0',
-          }}
-          onMouseEnter={() => setIsMouseIn(true)}
-          onMouseLeave={() => setIsMouseIn(false)}
-          onClick={(e) => {
-            setIsScreenShot(!isScreenShot);
-            setScreenShotLocation({
-              left: e.clientX,
-              top: e.clientY,
-            });
-          }}
-        />
-        <button
-          type="button"
-          style={{
-            backgroundImage: 'url(/contents/subtract.svg)',
-            backgroundPosition: 'center',
-            backgroundColor: 'transparent',
-            border: 'none',
-            position: 'absolute',
-            cursor: 'pointer',
-            width: '24px',
-            height: '24px',
-            left: '72px',
-            padding: '0',
-          }}
-          onMouseEnter={() => setIsMouseIn(true)}
-          onMouseLeave={() => setIsMouseIn(false)}
-          onClick={() => {
-            findLayer(paper, 'underlay').visible = true;
-            findLayer(paper, 'background').removeChildren();
+                  findLayer('sketch').removeChildren();
+                  deletePhoto(canvasIndex);
+                  undoHistoryArr.current.splice(0, undoHistoryArr.current.length);
+                  scaleIndex.current = 0;
+                  sketchIndex.current = -1;
+                  currentImage.current = '';
 
-            findLayer(paper, 'sketch').removeChildren();
-            deletePhoto(canvasIndex);
-            undoHistoryArr.current.splice(0, undoHistoryArr.current.length);
-            scaleIndex.current = 0;
-            sketchIndex.current = -1;
-            currentImage.current = '';
+                  findLayer('underlay').visible = true;
+                  findLayer('sketch').visible = false;
+                  fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
+                  setUnderlay(paper, initCanvasSize, canvasIndex);
 
-            findLayer(paper, 'underlay').visible = true;
-            findLayer(paper, 'sketch').visible = false;
-            fitLayerInView(paper, viewY, canvasSize.width, canvasSize.height);
-            setUnderlay(paper, initCanvasSize, canvasIndex, surface);
-            // setOverlay(1, paper);
-            // findLayer(paper, 'overlay').position = new Point(paper.view.bounds.topRight.x - iconSize.width * 2, iconSize.height / 2);
-
-            option = 'subtract';
-          }}
-        />
+                  setFilter({
+                    Brightness: 0,
+                    Saturation: 0,
+                    Contranst: 0,
+                    HueRotate: 0,
+                    Inversion: 0,
+                  });
+                  applyFilter({
+                    Brightness: 0,
+                    Saturation: 0,
+                    Contranst: 0,
+                    HueRotate: 0,
+                    Inversion: 0,
+                  });
+                  option = 'subtract';
+                }
+              }}
+            />
+          );
+        })}
       </div>
       <div
         style={{

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Color, SketchPicker, ColorResult, RGBColor } from 'react-color';
+import React, { useEffect, useRef, useState } from 'react';
+import { SketchPicker, ColorResult, RGBColor } from 'react-color';
 import { ColorModalStyled } from './ColorModalStyled';
 
 interface IColorModalProp {
@@ -9,10 +9,6 @@ interface IColorModalProp {
 }
 interface IColor {
   [index: string]: RGBColor;
-}
-interface IColorMap {
-  color: RGBColor;
-  index: number;
 }
 
 const BasicColors: IColor = {

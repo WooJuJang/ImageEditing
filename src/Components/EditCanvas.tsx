@@ -1,34 +1,10 @@
 import html2canvas from 'html2canvas';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
-import Canvas, { formatTool, historyType, ICurrentScale } from './Canvas';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import Canvas from './Canvas';
+import { IImplantInput, IFilter, ICanvasHistory, IDetail, formatTool, IFilterBtnTemplete, refType } from '../types';
 import ColorModal from './ColorModal';
 import InsertImplants from './InsertImplants';
 import { throttle } from 'lodash';
-export interface IImplantInput {
-  crown: string;
-  implantImage: string;
-  flip: boolean;
-  tooltip: string;
-  isCrown: boolean;
-  isTooltip: boolean;
-}
-export interface IFilter {
-  Brightness: number;
-  Saturation: number;
-  Contranst: number;
-  HueRotate: number;
-  Inversion: number;
-}
-export interface ICanvasHistory {
-  [key: number]: number;
-  index: number;
-  imageUrl: string;
-  sketchIndex: number;
-  history: historyType[];
-  scaleIndex: number;
-  scaleArr: ICurrentScale[];
-  filter: IFilter;
-}
 
 const layeroutTemplete = [
   {
@@ -72,24 +48,7 @@ const layeroutTemplete = [
     },
   },
 ];
-const filterKey = ['Brightness', 'Saturation', 'Contranst', 'HueRotate', 'Inversion'] as const;
-type formatFilter = typeof filterKey[number];
-interface IFilterBtnTemplete {
-  name: formatFilter;
-  min: string;
-  max: string;
-  init: number;
-  slide: boolean;
-}
-
-export interface IDetail {
-  width: number;
-  height: number;
-  pixcelspacing: {
-    x: number;
-    y: number;
-  };
-}
+export const filterKey = ['Brightness', 'Saturation', 'Contranst', 'HueRotate', 'Inversion'] as const;
 
 const filterBtnTemplete: IFilterBtnTemplete[] = [
   {
@@ -155,14 +114,17 @@ const initCanvasSize = {
   height: 750,
 };
 const calcCanvasSize = (surface: number) => {
-  if (window.innerWidth >= 600 && window.innerWidth <= 1200) {
+  if (window.innerWidth >= initCanvasSize.width / 2 && window.innerWidth <= initCanvasSize.width) {
     return {
       width: window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0],
       height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
     };
   } else {
     return {
-      width: window.innerWidth < 600 ? 600 : initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
+      width:
+        window.innerWidth < initCanvasSize.width / 2
+          ? initCanvasSize.width / 2
+          : initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0],
       height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
     };
   }
@@ -175,19 +137,18 @@ const EditCanvas = () => {
   const [isToothImage, setIsToothImage] = useState(false);
   const [size, setSize] = useState(1);
   const [isViewOriginal, setIsViewOriginal] = useState(true);
-  const [isImageLoad, setIsImageLoad] = useState(false);
 
-  const [surface, setSurface] = useState(1);
+  const surface = useRef<number>(1);
   const [currToothImageUrl, setCurrToothImageUrl] = useState(toothImageUrls.ceramic);
   const [isImplantInput, setIsImplantInput] = useState(false);
   const [isScreenShot, setIsScreenShot] = useState(false);
 
   const canvasContainer = useRef<HTMLDivElement>(null);
-  const canvasRefs = useRef<any[]>([]);
+  const canvasRefs = useRef<refType[]>([]);
 
   const [canvasSize, setCanvasSize] = useState({
-    width: calcCanvasSize(surface).width,
-    height: calcCanvasSize(surface).height,
+    width: calcCanvasSize(surface.current).width,
+    height: calcCanvasSize(surface.current).height,
   });
   const [detail, setDetail] = useState<IDetail | undefined>();
   const [action, setAction] = useState<formatTool>('penTool');
@@ -198,99 +159,28 @@ const EditCanvas = () => {
     x: 0,
     y: 0,
   });
-  const canvasHistory = useRef<ICanvasHistory[]>([
-    {
-      index: 0,
-      imageUrl: '',
-      sketchIndex: 0,
-      history: [],
-      scaleIndex: 0,
-      scaleArr: [],
-      filter: {
-        Brightness: 0,
-        Saturation: 0,
-        Contranst: 0,
-        HueRotate: 0,
-        Inversion: 0,
-      },
-    },
-    {
-      index: 1,
-      imageUrl: '',
-      sketchIndex: 0,
-      history: [],
-      scaleIndex: 0,
-      scaleArr: [],
-      filter: {
-        Brightness: 0,
-        Saturation: 0,
-        Contranst: 0,
-        HueRotate: 0,
-        Inversion: 0,
-      },
-    },
-    {
-      index: 2,
-      imageUrl: '',
-      sketchIndex: 0,
-      history: [],
-      scaleIndex: 0,
-      scaleArr: [],
-      filter: {
-        Brightness: 0,
-        Saturation: 0,
-        Contranst: 0,
-        HueRotate: 0,
-        Inversion: 0,
-      },
-    },
-    {
-      index: 3,
-      imageUrl: '',
-      sketchIndex: 0,
-      history: [],
-      scaleIndex: 0,
-      scaleArr: [],
-      filter: {
-        Brightness: 0,
-        Saturation: 0,
-        Contranst: 0,
-        HueRotate: 0,
-        Inversion: 0,
-      },
-    },
-    {
-      index: 4,
-      imageUrl: '',
-      sketchIndex: 0,
-      history: [],
-      scaleIndex: 0,
-      scaleArr: [],
-      filter: {
-        Brightness: 0,
-        Saturation: 0,
-        Contranst: 0,
-        HueRotate: 0,
-        Inversion: 0,
-      },
-    },
-    {
-      index: 5,
-      imageUrl: '',
-      sketchIndex: 0,
-      history: [],
-      scaleIndex: 0,
-      scaleArr: [],
-      filter: {
-        Brightness: 0,
-        Saturation: 0,
-        Contranst: 0,
-        HueRotate: 0,
-        Inversion: 0,
-      },
-    },
-  ]);
 
+  const canvasHistory: ICanvasHistory[] = useMemo(() => {
+    const result: ICanvasHistory[] = [];
+    for (let i = 0; i < 6; i++) {
+      result.push({
+        index: i,
+        imageUrl: '',
+        sketchIndex: 0,
+        history: [],
+        scaleIndex: 0,
+        scaleArr: [],
+        filter: {
+          Brightness: 0,
+          Saturation: 0,
+          Contranst: 0,
+          HueRotate: 0,
+          Inversion: 0,
+        },
+      });
+    }
+    return result;
+  }, []);
   const [implantInput, setImplantInput] = useState<IImplantInput>({
     crown: '',
     implantImage: '',
@@ -324,7 +214,7 @@ const EditCanvas = () => {
   };
 
   const settingPhoto = (photoUrl: string) => {
-    for (let i = 0; i < surface; i++) {
+    for (let i = 0; i < surface.current; i++) {
       if (!isBackgrounds[i as formatIsBackgroundKey]) {
         canvasRefs.current[i].settingPhoto(photoUrl);
         isBackgrounds[i as formatIsBackgroundKey] = true;
@@ -334,15 +224,15 @@ const EditCanvas = () => {
   };
   const deletePhoto = (canvasIndex: number) => {
     isBackgrounds[canvasIndex as formatIsBackgroundKey] = false;
-    canvasHistory.current[canvasIndex].imageUrl = '';
-    canvasHistory.current[canvasIndex].history = [];
+    canvasHistory[canvasIndex].imageUrl = '';
+    canvasHistory[canvasIndex].history = [];
   };
 
   const inputImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const reader = new FileReader();
       reader.onload = () => {
-        canvasRefs.current[5].settingPhoto(reader.result);
+        canvasRefs.current[5].settingPhoto(reader.result as string);
         isBackgrounds[5] = true;
       };
       reader.readAsDataURL(e.target.files[0]);
@@ -352,7 +242,6 @@ const EditCanvas = () => {
   const SaveToPc = async () => {
     const container = await html2canvas(canvasContainer.current as HTMLDivElement);
     const dataURL = container.toDataURL('image/png');
-    // downloadjs(dataURL, 'download.png', 'image/png');
     const link = document.createElement('a');
     document.body.appendChild(link);
     link.href = dataURL;
@@ -361,7 +250,7 @@ const EditCanvas = () => {
     document.body.removeChild(link);
   };
 
-  const handleResize = useCallback((surface: number, initCanvasSize: any) => {
+  const handleResize = useCallback((surface: number) => {
     if (window.innerWidth >= 600 && window.innerWidth <= 1200) {
       const w = window.innerWidth * layeroutTemplete[Math.floor(surface / 2)].view[0];
       const h = initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1];
@@ -378,26 +267,22 @@ const EditCanvas = () => {
         height: initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1],
       });
     }
-    setIsImageLoad(false);
   }, []);
 
   useEffect(() => {
-    // setCanvasSize({
-    //   width: calcCanvasSize(surface).width,
-    //   height: calcCanvasSize(surface).height,
-    // });
-
     window.addEventListener(
       'resize',
       throttle(() => {
-        setIsImageLoad(true);
-        handleResize(surface, initCanvasSize);
+        handleResize(surface.current);
       }, 500)
     );
     return () => {
-      window.removeEventListener('resize', () => {
-        handleResize(surface, initCanvasSize);
-      });
+      window.removeEventListener(
+        'resize',
+        throttle(() => {
+          handleResize(surface.current);
+        }, 500)
+      );
     };
   }, [surface, handleResize]);
 
@@ -410,14 +295,13 @@ const EditCanvas = () => {
     canvasRefs.current[currentCanvasIndex].implantInput(implantInput);
   }, [isImplantInput, currentCanvasIndex, implantInput]);
   useEffect(() => {
-    for (let i = 0; i < surface; i++) {
+    for (let i = 0; i < surface.current; i++) {
       canvasRefs.current[i].viewOriginal(isViewOriginal);
     }
   }, [isViewOriginal, surface]);
 
   return (
     <div style={{ marginTop: '10px', width: '1200px' }}>
-      {isImageLoad && <div style={{ backgroundColor: 'white', width: '100vw', height: '100vh' }}> Image Load</div>}
       <ColorModal colorOpen={colorOpen} setColorOpen={setColorOpen} setCurrColor={setCurrColor} />
       {implantOpen && (
         <InsertImplants
@@ -767,8 +651,7 @@ const EditCanvas = () => {
             <button
               key={number}
               onClick={() => {
-                setSurface(number);
-
+                surface.current = number;
                 setCanvasSize({
                   width: calcCanvasSize(number).width,
                   height: calcCanvasSize(number).height,
@@ -798,7 +681,6 @@ const EditCanvas = () => {
             <button onClick={SaveToPc}>Save to Pc</button>
           </div>
         </div>
-
         <div
           className="canvas-container"
           id="canvas"
@@ -807,36 +689,33 @@ const EditCanvas = () => {
             display: 'flex',
             flexDirection: 'row',
             flexWrap: 'wrap',
-            width: canvasSize.width * (surface > 3 ? surface / 2 : surface),
+            width: canvasSize.width * (surface.current > 3 ? surface.current / 2 : surface.current),
           }}
-          // style={{
-          //   display: 'grid',
-          //   gridTemplateColumns: layeroutTemplete[Math.floor(surface / 2)].templates.columns,
-          //   gridTemplateRows: layeroutTemplete[Math.floor(surface / 2)].templates.rows,
-          //   minWidth: '600px',
-          //   maxWidth: '1200px',
-          // }}
         >
-          {new Array(surface).fill('').map((el, i) => {
+          {new Array(surface.current).fill('').map((el, i) => {
             return (
               <Canvas
                 key={i}
                 ref={(ref) => {
+                  if (!ref) return;
                   canvasRefs.current[i] = ref;
                 }}
-                view={[layeroutTemplete[Math.floor(surface / 2)].view[0], layeroutTemplete[Math.floor(surface / 2)].view[1]]}
+                view={[
+                  layeroutTemplete[Math.floor(surface.current / 2)].view[0],
+                  layeroutTemplete[Math.floor(surface.current / 2)].view[1],
+                ]}
                 canvasIndex={i}
                 action={action}
-                surface={surface}
-                width={initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].size[0]}
-                height={initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].size[1]}
+                surface={surface.current}
+                width={initCanvasSize.width * layeroutTemplete[Math.floor(surface.current / 2)].size[0]}
+                height={initCanvasSize.height * layeroutTemplete[Math.floor(surface.current / 2)].size[1]}
                 initCanvasSize={initCanvasSize}
-                scaleX={layeroutTemplete[Math.floor(surface / 2)].scale[0]}
-                scaleY={layeroutTemplete[Math.floor(surface / 2)].scale[1]}
+                scaleX={layeroutTemplete[Math.floor(surface.current / 2)].scale[0]}
+                scaleY={layeroutTemplete[Math.floor(surface.current / 2)].scale[1]}
                 // viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
                 // viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
-                viewX={initCanvasSize.width * layeroutTemplete[Math.floor(surface / 2)].view[0]}
-                viewY={initCanvasSize.height * layeroutTemplete[Math.floor(surface / 2)].view[1]}
+                viewX={initCanvasSize.width * layeroutTemplete[Math.floor(surface.current / 2)].view[0]}
+                viewY={initCanvasSize.height * layeroutTemplete[Math.floor(surface.current / 2)].view[1]}
                 currColor={currColor}
                 size={size}
                 currToothImageUrl={currToothImageUrl}
@@ -847,12 +726,14 @@ const EditCanvas = () => {
                 isViewOriginal={isViewOriginal}
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
                 deletePhoto={deletePhoto}
-                canvasHistory={canvasHistory.current}
+                canvasHistory={canvasHistory}
                 // setCanvasHistory={setCanvasHistory}
 
                 canvasSize={canvasSize}
                 setImplantInput={setImplantInput}
                 detail={detail}
+                // setIsImageLoad={setIsImageLoad}
+                // isImageLoad={isImageLoad}
               />
             );
           })}

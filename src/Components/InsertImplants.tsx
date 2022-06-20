@@ -1,35 +1,11 @@
 import Paper, { Group, Point, PointText, Raster, Tool } from 'paper';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-interface IImplantInput {
-  crown: string;
-  implantImage: string;
-  flip: boolean;
-  tooltip: string;
-  isCrown: boolean;
-  isTooltip: boolean;
-}
-interface IInsertImplantsModalProp {
-  implantOpen: boolean;
-  setImplantOpen: (value: boolean) => void;
-  setImplantInput: (value: IImplantInput) => void;
-  setIsImplantInput: (value: boolean) => void;
-}
-interface IImplantInfo {
-  Diameter: number;
-  Length: number;
-  image: string;
-  tooltip: string;
-}
-interface ICrownInfo {
-  crownType: string;
-  image: string;
-}
+import { IImplantInput, IImplantInfo, ICrownInfo, IInsertImplantsModalProp, ICrownImages, IImplantImage } from '../types';
 
 let implantCanvas: HTMLCanvasElement;
 let implantContext: CanvasRenderingContext2D | null = null;
 let implantPaper: paper.PaperScope = new Paper.PaperScope();
 
-let implantGroup: paper.Group;
 let implantImage: paper.Raster;
 let implantInfo: paper.PointText;
 let crown: paper.Raster;
@@ -62,14 +38,6 @@ const crownInfo: ICrownInfo[] = [
   { crownType: 'posterior', image: 'implants/implant-posterior.svg' },
 ];
 
-interface ICrownImages {
-  crownType: string;
-  image: paper.Raster;
-}
-interface IImplantImage {
-  image: paper.Raster;
-  text: paper.PointText;
-}
 const flipTool = new Tool();
 let implant: paper.Group;
 let implantImages: IImplantImage[] = new Array(12).fill('');
@@ -146,11 +114,14 @@ const InsertImplants = ({ implantOpen, setImplantOpen, setImplantInput, setIsImp
     setImplantOpen(false);
   };
 
-  const onClose = useCallback((e: React.MouseEvent) => {
-    if (ref.current === e.target) {
-      setImplantOpen(false);
-    }
-  }, []);
+  const onClose = useCallback(
+    (e: React.MouseEvent) => {
+      if (ref.current === e.target) {
+        setImplantOpen(false);
+      }
+    },
+    [setImplantOpen]
+  );
 
   const onChangeCrownCheckBox = () => {
     implantInput.isCrown = !isCrown;

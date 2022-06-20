@@ -1,24 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Draggable from 'react-draggable';
-interface IProps {
-  url: string;
-  setIsPreview: (value: boolean) => void;
-  width: number;
-  height: number;
-  imgWidth: number;
-  imgHeight: number;
-}
+import { IPreviewModalProps } from '../types';
 
-const PreviewModal = (props: IProps) => {
+const PreviewModal = (props: IPreviewModalProps) => {
   const { url, setIsPreview, width, height, imgWidth, imgHeight } = props;
   const imageRef = useRef<HTMLDivElement>(null);
   const imageParentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [isReset, setIsReset] = useState(false);
-  // const [scaleXY, setScaleXY] = useState({
-  //   x: 1,
-  //   y: 1,
-  // });
+
   const [btnPosition, setBtnPosition] = useState({
     x: 0,
     y: 0,
@@ -37,18 +27,13 @@ const PreviewModal = (props: IProps) => {
     setIsReset(true);
     setScale(1);
   };
-  // useEffect(() => {
-  //   if (!imageParentRef.current) return;
 
-  //   // console.log(imageParentRef.current.getBoundingClientRect().width);
-  // }, [imageParentRef?.current?.getBoundingClientRect().width]);
   useEffect(() => {
     if (!imageRef.current || !imageParentRef.current) return;
     setBtnPosition({
       x: imageRef.current.getBoundingClientRect().right - 220,
       y: imageRef.current.getBoundingClientRect().top + 20,
     });
-    // setScaleXY({ x: imageRef.current.getBoundingClientRect().width / width, y: imageRef.current.getBoundingClientRect().height / height });
   }, [url, width, height]);
 
   return (

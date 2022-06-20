@@ -23,7 +23,7 @@
     "styled-components": "^5.3.5",
     "typescript-react-draggable": "^1.0.0",
     "use-deep-compare-effect": "^1.8.1",
-    "use-resize-observer": "^9.0.0",
+    "use-resize-observer": "^9.0.2",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

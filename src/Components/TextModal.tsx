@@ -1,29 +1,14 @@
 import React, { useRef } from 'react';
+import { ITextModalProp } from '../types';
 
-interface ICanvasRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-interface IProp {
-  open: boolean;
-  setOpen: (value: boolean) => void;
-  x: number;
-  y: number;
-  text: string;
-  setText: (value: string) => void;
-  canvas: ICanvasRect;
-}
-
-const TextModal = ({ open, setOpen, x, y, text, setText }: IProp) => {
+const TextModal = ({ open, setOpen, x, y, text, setText }: ITextModalProp) => {
   //ref가 없는 곳에 클릭 시 창 닫히는 함수
   const ref = useRef<HTMLDivElement>(null);
 
-  const onChangeInput = (event: any) => {
+  const onChangeInput = (event: React.ChangeEvent<HTMLInputElement>) => {
     setText(event.target.value);
   };
-  const onClose = (e: any) => {
+  const onClose = (e: React.MouseEvent<HTMLDivElement>) => {
     if (ref.current === e.target) {
       setOpen(false);
     }
