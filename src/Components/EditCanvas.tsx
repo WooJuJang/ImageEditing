@@ -712,8 +712,6 @@ const EditCanvas = () => {
                 initCanvasSize={initCanvasSize}
                 scaleX={layeroutTemplete[Math.floor(surface.current / 2)].scale[0]}
                 scaleY={layeroutTemplete[Math.floor(surface.current / 2)].scale[1]}
-                // viewX={layeroutTemplete[Math.floor(surface / 2)].view[0]}
-                // viewY={layeroutTemplete[Math.floor(surface / 2)].view[1]}
                 viewX={initCanvasSize.width * layeroutTemplete[Math.floor(surface.current / 2)].view[0]}
                 viewY={initCanvasSize.height * layeroutTemplete[Math.floor(surface.current / 2)].view[1]}
                 currColor={currColor}
@@ -727,13 +725,9 @@ const EditCanvas = () => {
                 setCurrentCanvasIndex={setCurrentCanvasIndex}
                 deletePhoto={deletePhoto}
                 canvasHistory={canvasHistory}
-                // setCanvasHistory={setCanvasHistory}
-
                 canvasSize={canvasSize}
                 setImplantInput={setImplantInput}
                 detail={detail}
-                // setIsImageLoad={setIsImageLoad}
-                // isImageLoad={isImageLoad}
               />
             );
           })}

@@ -516,8 +516,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   let isDrag = false;
   const currBackgroundSize = useRef({
     center: new Point(0, 0),
-    width: 1200,
-    height: 750,
+    width: initCanvasSize.width,
+    height: initCanvasSize.height,
   });
   const undoHistoryArr = useRef<historyType[]>([]);
   const scaleIndex = useRef<number>(0);
@@ -614,8 +614,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         new Rectangle({
           x: 0,
           y: 0,
-          width: 1200,
-          height: 750,
+          width: initCanvasSize.width,
+          height: initCanvasSize.height,
         })
       );
       background.addChild(raster);
@@ -741,7 +741,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
   const fitLayerInView = useCallback(
     (paper: paper.PaperScope, viewY: number, canvasSizeWidth: number, canvasSizeHeight: number) => {
       paper.project.view.matrix.reset();
-      console.log(viewY, canvasSizeWidth, canvasSizeHeight);
       paper.project.view.viewSize = new Size(canvasSizeWidth, viewY);
 
       applyFilter(canvasHistory[canvasIndex].filter);
@@ -757,17 +756,17 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         paper.view.scale(viewW, new Point(0, 0));
         if (paper.view.bounds.height < findLayer('background').bounds.height) {
           paper.view.matrix.reset();
-          // paper.view.scale(1 / viewW, new Point(0, 0));
           paper.view.scale(viewH, new Point(0, 0));
           if (isHistory.current) {
             isHistory.current = false;
-            currBackgroundSize.current.center = new Point(600, 375);
+
+            currBackgroundSize.current.center = new Point(initCanvasSize.width / 2, initCanvasSize.height / 2);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
         } else {
           if (isHistory.current) {
             isHistory.current = false;
-            currBackgroundSize.current.center = new Point(600, 375);
+            currBackgroundSize.current.center = new Point(initCanvasSize.width / 2, initCanvasSize.height / 2);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
         }
@@ -775,23 +774,22 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         paper.view.scale(viewH, new Point(0, 0));
         if (paper.view.bounds.width < findLayer('background').bounds.width) {
           paper.view.matrix.reset();
-          // paper.view.scale(1 / viewH, new Point(0, 0));
           paper.view.scale(viewW, new Point(0, 0));
           if (isHistory.current) {
             isHistory.current = false;
-            currBackgroundSize.current.center = new Point(600, 375);
+            currBackgroundSize.current.center = new Point(initCanvasSize.width / 2, initCanvasSize.height / 2);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
         } else {
           if (isHistory.current) {
             isHistory.current = false;
-            currBackgroundSize.current.center = new Point(600, 375);
+            currBackgroundSize.current.center = new Point(initCanvasSize.width / 2, initCanvasSize.height / 2);
           }
           paper.view.matrix.translate(paper.view.bounds.center.subtract(currBackgroundSize.current.center));
         }
       }
     },
-    [canvasHistory, canvasIndex, findLayer]
+    [canvasHistory, canvasIndex, findLayer, initCanvasSize]
   );
   const makeNewLayer = useCallback(
     (crop: boolean) => {
@@ -1791,10 +1789,12 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       setIsLayerMove(true);
     },
     flip(x: number, y: number) {
+      if (!currentImage.current) return;
       paper.view.matrix.scale(x, y, findLayer('background').bounds.center);
       logEditLayer.current.push({ log: 'flip', value: { x: x, y: y } });
     },
     zoom(x: number, y: number) {
+      if (!currentImage.current) return;
       const scaleValueX = initScale.x * x;
       const scaleValueY = initScale.y * y;
       if (scaleValueX > 4 || scaleValueX < 0.25) return;
@@ -1804,6 +1804,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
       logEditLayer.current.push({ log: 'zoom', value: { x: x, y: y } });
     },
     rotate(r: number) {
+      if (!currentImage.current) return;
       paper.view.matrix.rotate(r, findLayer('background').bounds.center);
       logEditLayer.current.push({ log: 'rotate', value: r });
     },
@@ -1905,7 +1906,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
               onClick={(e) => {
                 if (el === 'preview') {
                   if (currentImage.current) {
-                    fitLayerInView(paper, 750, 1200, 750);
+                    fitLayerInView(paper, initCanvasSize.height, initCanvasSize.width, initCanvasSize.height);
                     paper.view.update();
 
                     paper.view.element.toBlob((blob) => {
