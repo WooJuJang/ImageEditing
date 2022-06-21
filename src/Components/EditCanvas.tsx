@@ -48,6 +48,7 @@ const layeroutTemplete = [
     },
   },
 ];
+
 export const filterKey = ['Brightness', 'Saturation', 'Contranst', 'HueRotate', 'Inversion'] as const;
 
 const filterBtnTemplete: IFilterBtnTemplete[] = [
@@ -205,6 +206,11 @@ const EditCanvas = () => {
     HueRotate: false,
     Inversion: false,
   });
+  const [screenShotPos, setScreenShotPos] = useState({
+    left: 0,
+    top: 0,
+  });
+  const screenShotBtnRef = useRef<HTMLButtonElement>(null);
   const filterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFilter((prev) => ({
@@ -238,8 +244,16 @@ const EditCanvas = () => {
       reader.readAsDataURL(e.target.files[0]);
     }
   };
-
-  const SaveToPc = async () => {
+  const screenShot = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!screenShotBtnRef.current) return;
+    const btnInfo = screenShotBtnRef.current.getBoundingClientRect();
+    setScreenShotPos({
+      left: btnInfo.x + btnInfo.width / 2,
+      top: btnInfo.y + btnInfo.height / 2,
+    });
+    setIsScreenShot(true);
+  };
+  const saveToPc = async () => {
     const container = await html2canvas(canvasContainer.current as HTMLDivElement);
     const dataURL = container.toDataURL('image/png');
     const link = document.createElement('a');
@@ -477,6 +491,7 @@ const EditCanvas = () => {
                         value={filter[filterBtnTemplete[index].name]}
                         name={filterBtnTemplete[index].name}
                         onChange={filterChange}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </div>
                   </div>
@@ -666,20 +681,29 @@ const EditCanvas = () => {
           >
             View Original
           </button>
-          <button onClick={() => setIsScreenShot(!isScreenShot)}>ScreenShot</button>
-          <div
-            style={{
-              visibility: isScreenShot ? 'visible' : 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-              position: 'absolute',
-              left: '460px',
-              top: '200px',
-            }}
-          >
-            <button>Save to Clever</button>
-            <button onClick={SaveToPc}>Save to Pc</button>
-          </div>
+          <button ref={screenShotBtnRef} onClick={screenShot}>
+            ScreenShot
+          </button>
+
+          {isScreenShot && (
+            <div
+              style={{ position: 'absolute', left: '0', top: '0', width: '100%', height: '100vh' }}
+              onClick={() => setIsScreenShot(false)}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'absolute',
+                  left: `${screenShotPos.left}px`,
+                  top: `${screenShotPos.top}px`,
+                }}
+              >
+                <button onClick={() => {}}>Save to Clever</button>
+                <button onClick={saveToPc}>Save to Pc</button>
+              </div>
+            </div>
+          )}
         </div>
         <div
           className="canvas-container"

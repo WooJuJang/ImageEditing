@@ -1,4 +1,4 @@
-import { ToolKey } from './Components/Canvas';
+import { ToolKey, assetsKey } from './Components/Canvas';
 import { filterKey } from './Components/EditCanvas';
 export interface IInitCanvasSize {
   width: number;
@@ -179,4 +179,16 @@ export interface ICrownImages {
 export interface IImplantImage {
   image: paper.Raster;
   text: paper.PointText;
+}
+export type formatAssetKey = typeof assetsKey[number];
+export type assetsKeyType = {
+  [k in formatAssetKey]: string;
+};
+export interface ICursorList {
+  [index: string]: string;
+}
+export interface ILayers {
+  background: paper.Layer;
+  underlay: paper.Layer;
+  sketch: paper.Layer;
 }

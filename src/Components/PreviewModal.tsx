@@ -3,7 +3,7 @@ import Draggable from 'react-draggable';
 import { IPreviewModalProps } from '../types';
 
 const PreviewModal = (props: IPreviewModalProps) => {
-  const { url, setIsPreview, width, height, imgWidth, imgHeight } = props;
+  const { url, setIsPreview, width, height } = props;
   const imageRef = useRef<HTMLDivElement>(null);
   const imageParentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -87,7 +87,7 @@ const PreviewModal = (props: IPreviewModalProps) => {
 
                 backgroundPosition: 'center center',
                 backgroundOrigin: 'border-box',
-                backgroundSize: imgWidth > imgHeight ? 'cover' : 'contain',
+                backgroundSize: 'cover',
                 backgroundRepeat: 'no-repeat',
                 backgroundColor: 'black',
               }}

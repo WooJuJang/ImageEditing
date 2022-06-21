@@ -1,6 +1,5 @@
 import Paper, { Group, Layer, Path, Point, PointText, Raster, Rectangle, Shape, Size } from 'paper';
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { ICursorList } from '../PaperTypes';
 import PreviewModal from './PreviewModal';
 import TextModal from './TextModal';
 import {
@@ -17,6 +16,10 @@ import {
   propsType,
   refType,
   ToolType,
+  assetsKeyType,
+  formatAssetKey,
+  ICursorList,
+  ILayers,
 } from '../types';
 
 const iconSize = {
@@ -30,7 +33,7 @@ const cursorList: ICursorList = {
   edit: 'text',
 };
 const direction = ['up', 'bottom', 'left', 'right'];
-
+const optionList = ['resize', 'rotate', 'move', 'edit'];
 export const ToolKey = [
   'penTool',
   'pathTool',
@@ -46,17 +49,8 @@ export const ToolKey = [
   'layerMoveTool',
 ] as const;
 
-interface ILayers {
-  background: paper.Layer;
-  underlay: paper.Layer;
-  sketch: paper.Layer;
-}
 const overlayKey = ['preview', 'visible', 'upload', 'subtract'];
-const assetsKey = ['scale', 'scalev', 'scaleh', 'preview', 'visible', 'upload', 'subtract'] as const;
-type formatAssetKey = typeof assetsKey[number];
-type assetsKeyType = {
-  [k in formatAssetKey]: string;
-};
+export const assetsKey = ['scale', 'scalev', 'scaleh', 'preview', 'visible', 'upload', 'subtract'] as const;
 
 const assets: assetsKeyType = {
   scale: '/contents/scale.svg',
@@ -189,24 +183,20 @@ const resizePathRectangle = (event: paper.ToolEvent) => {
       //1사분면
       path.segments[0].point = new Point(currEvent.x, currEvent.y);
       path.segments[1].point = new Point(currEvent.x, path.segments[1].point.y);
-      // path.segments[2].point = path.segments[2].point;
       path.segments[3].point = new Point(path.segments[3].point.x, currEvent.y);
     } else if (segment.index === 1) {
       //2사분면
       path.segments[0].point = new Point(currEvent.x, path.segments[0].point.y);
       path.segments[1].point = new Point(currEvent.x, currEvent.y);
       path.segments[2].point = new Point(path.segments[2].point.x, currEvent.y);
-      // path.segments[3].point = path.segments[3].point;
     } else if (segment.index === 2) {
       //3사분면
-      // path.segments[0].point = path.segments[0].point;
       path.segments[1].point = new Point(path.segments[1].point.x, currEvent.y);
       path.segments[2].point = new Point(currEvent.x, currEvent.y);
       path.segments[3].point = new Point(currEvent.x, path.segments[3].point.y);
     } else if (segment.index === 3) {
       //4사분면
       path.segments[0].point = new Point(path.segments[0].point.x, currEvent.y);
-      // path.segments[1].point = path.segments[1].point;
       path.segments[2].point = new Point(currEvent.x, path.segments[2].point.y);
       path.segments[3].point = new Point(currEvent.x, currEvent.y);
     }
@@ -224,119 +214,41 @@ const deleteNoDragShape = () => {
 };
 
 //텍스트,이미지,임플란트에 대한 편집 필드만들기
-const createEditField = (FigureType: string) => {
+const createEditField = (FigureType: string, currToothImageUrl?: string) => {
   const topLeft = shape.bounds.topLeft;
   const bottomLeft = shape.bounds.bottomLeft;
-  const width = shape.bounds.width / 8;
-  const group = new Group({
-    data: { type: FigureType, PointTextId: pointText.data.PointTextId },
-  });
-
-  const pth: paper.Path = new Path.Rectangle({
-    from: topLeft,
-    to: new Point(bottomLeft.x + width, bottomLeft.y),
-    fillColor: 'red',
-
-    data: { option: 'resize' },
-  });
-  const pth2: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width, topLeft.y),
-    to: new Point(bottomLeft.x + width * 2, bottomLeft.y),
-    fillColor: 'blue',
-    data: { option: 'rotate' },
-  });
-  const pth3: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 2, topLeft.y),
-    to: new Point(bottomLeft.x + width * 3, bottomLeft.y),
-    fillColor: 'yellow',
-    data: { option: 'move' },
-  });
-  const pth4: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 3, topLeft.y),
-    to: new Point(bottomLeft.x + width * 5, bottomLeft.y),
-    fillColor: 'blue',
-    data: { option: 'edit' },
-  });
-  const pth5: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 5, topLeft.y),
-    to: new Point(bottomLeft.x + width * 6, bottomLeft.y),
-    fillColor: 'yellow',
-
-    data: { option: 'move' },
-  });
-  const pth6: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 6, topLeft.y),
-    to: new Point(bottomLeft.x + width * 7, bottomLeft.y),
-    fillColor: 'blue',
-
-    data: { option: 'rotate' },
-  });
-  const pth7: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 7, topLeft.y),
-    to: new Point(bottomLeft.x + width * 8, bottomLeft.y),
-    fillColor: 'red',
-
-    data: { option: 'resize' },
-  });
-  group.addChild(pth);
-  group.addChild(pth2);
-  group.addChild(pth3);
-  group.addChild(pth4);
-  group.addChild(pth5);
-  group.addChild(pth6);
-  group.addChild(pth7);
-  group.opacity = 0;
-  group.insertAbove(pointText);
-  return { group: group, pointText: pointText };
-};
-const createRasterEditField = (FigureType: string, currToothImageUrl: string) => {
+  let split = 0;
+  if (FigureType === 'Raster') {
+    split = 6;
+  } else if (FigureType === 'PointText') {
+    split = 8;
+  }
+  const width = shape.bounds.width / split;
   const raster = new Raster({ source: currToothImageUrl, bounds: shape.bounds, data: { type: FigureType }, closed: true });
-
-  const topLeft = shape.bounds.topLeft;
-  const bottomLeft = shape.bounds.bottomLeft;
-  const width = shape.bounds.width / 6;
   raster.data = { RasterId: raster.id };
-  const group = new Group({ data: { type: FigureType, RasterId: raster.data.RasterId } });
+  const groupData = { type: FigureType, RasterId: raster.data.RasterId };
+  const group = new Group({ data: groupData, opacity: 0 });
+  const list = optionList.slice(0, split / 2);
+  const newArr = [...list, ...list.reverse()];
 
-  const pth: paper.Path = new Path.Rectangle({
-    from: topLeft,
-    to: new Point(bottomLeft.x + width, bottomLeft.y),
-    fillColor: 'red',
-    data: { option: 'resize' },
-  });
-  const pth2: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width, topLeft.y),
-    to: new Point(bottomLeft.x + width * 2, bottomLeft.y),
-    fillColor: 'blue',
-    data: { option: 'rotate' },
-  });
-  const pth3: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 2, topLeft.y),
-    to: new Point(bottomLeft.x + width * 4, bottomLeft.y),
-    fillColor: 'yellow',
-    data: { option: 'move' },
-  });
-  const pth4: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 4, topLeft.y),
-    to: new Point(bottomLeft.x + width * 5, bottomLeft.y),
-    fillColor: 'blue',
-    data: { option: 'rotate' },
-  });
-  const pth5: paper.Path = new Path.Rectangle({
-    from: new Point(topLeft.x + width * 5, topLeft.y),
-    to: new Point(bottomLeft.x + width * 6, bottomLeft.y),
-    fillColor: 'red',
-    data: { option: 'resize' },
-  });
+  for (let i = 0; i < split; i++) {
+    const pth = new Path.Rectangle({
+      from: new Point(topLeft.x + width * i, topLeft.y),
+      to: new Point(bottomLeft.x + width * (i + 1), bottomLeft.y),
+      fillColor: 'red',
+      data: { option: newArr[i] },
+    });
+    group.addChild(pth);
+  }
 
-  group.addChild(pth);
-  group.addChild(pth2);
-  group.addChild(pth3);
-  group.addChild(pth4);
-  group.addChild(pth5);
-  group.opacity = 0;
-  group.insertAbove(raster);
-  return { group: group, raster: raster };
+  if (FigureType === 'Raster') {
+    group.insertAbove(raster);
+    return { group: group, raster: raster };
+  } else if (FigureType === 'PointText') {
+    group.insertAbove(pointText);
+    return { group: group, pointText: pointText };
+  }
+  return {};
 };
 
 const moveImplantInfo = (item: paper.Item, rotation: number) => {
@@ -458,9 +370,8 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     setImplantInput,
     detail,
   } = props;
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const paper = useMemo(() => new Paper.PaperScope(), []);
 
+  const paper = useMemo(() => new Paper.PaperScope(), []);
   const Tools: ToolType = useMemo(
     () => ({
       penTool: new paper.Tool(),
@@ -479,10 +390,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     [paper.Tool]
   );
 
-  const currentImage = useRef<string>('');
   const [layers, setLayers] = useState<ILayers>();
-
-  const sketchIndex = useRef<number>(-1);
   const [r, g, b] = currColor.split(',');
   const fillColor = `${r},${g},${b},0.1)`;
   const [text, setText] = useState('');
@@ -499,6 +407,13 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     left: 0,
     top: 0,
   });
+  const [isMouseIn, setIsMouseIn] = useState(false);
+
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const currentImage = useRef<string>('');
+  const sketchIndex = useRef<number>(-1);
+  const undoHistoryArr = useRef<historyType[]>([]);
+  const scaleIndex = useRef<number>(0);
   const isSettingPhoto = useRef(false);
   const scaleArr = useRef<ICurrentScale[]>([
     {
@@ -519,10 +434,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     width: initCanvasSize.width,
     height: initCanvasSize.height,
   });
-  const undoHistoryArr = useRef<historyType[]>([]);
-  const scaleIndex = useRef<number>(0);
-  const [isMouseIn, setIsMouseIn] = useState(false);
-
   const logEditLayer = useRef<ILogEditLayer[]>([]);
 
   const findLayer = useCallback(
@@ -1509,7 +1420,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
     } else {
       shape.remove();
       origin.remove();
-      const { group, raster } = createRasterEditField('Raster', currToothImageUrl);
+      const { group, raster } = createEditField('Raster', currToothImageUrl);
       removeHistory(sketchIndex.current);
       applyCurrentGroup(new Group([raster, group]));
       makeNewLayer(false);
@@ -1855,7 +1766,6 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
         }}
         onMouseDown={() => {
           setCurrentCanvasIndex(canvasIndex);
-
           setFilter(canvasHistory[canvasIndex].filter);
         }}
         onMouseEnter={() => {
@@ -1922,7 +1832,7 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
                 } else if (el === 'visible') {
                   findLayer('sketch').visible = !findLayer('sketch').visible;
                 } else if (el === 'upload') {
-                  setIsScreenShot(!isScreenShot);
+                  setIsScreenShot(true);
                   setScreenShotLocation({
                     left: e.clientX,
                     top: e.clientY,
@@ -1964,23 +1874,36 @@ const Canvas = forwardRef<refType, propsType>((props, ref) => {
           );
         })}
       </div>
-      <div
-        style={{
-          visibility: isScreenShot ? 'visible' : 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'absolute',
-          left: `${screenShotLocation.left}px`,
-          top: `${screenShotLocation.top}px`,
-        }}
-      >
-        <button onClick={saveOriginal} onMouseEnter={() => setIsMouseIn(true)}>
-          Save Original
-        </button>
-        <button onClick={saveAs} onMouseEnter={() => setIsMouseIn(true)}>
-          Save As
-        </button>
-      </div>
+      {isScreenShot && (
+        <div
+          style={{
+            position: 'absolute',
+            width: '100%',
+            height: '100vh',
+            top: '0px',
+            left: '0px',
+          }}
+          onClick={() => setIsScreenShot(false)}
+        >
+          <div
+            style={{
+              visibility: isScreenShot ? 'visible' : 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'absolute',
+              left: `${screenShotLocation.left}px`,
+              top: `${screenShotLocation.top}px`,
+            }}
+          >
+            <button onClick={saveOriginal} onMouseEnter={() => setIsMouseIn(true)}>
+              Save Original
+            </button>
+            <button onClick={saveAs} onMouseEnter={() => setIsMouseIn(true)}>
+              Save As
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 });
